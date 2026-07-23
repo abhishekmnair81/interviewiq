@@ -4,6 +4,12 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
+@shared_task(name='apps.analysis.tasks.add_numbers')
+def add_numbers(x: int, y: int) -> int:
+    logger.info(f"Executing add_numbers task: {x} + {y}")
+    return x + y
+
+
 @shared_task(
     bind=True,
     name='apps.analysis.tasks.analyze_session',
@@ -17,7 +23,6 @@ def analyze_session(self, session_id: str) -> str:
     try:
         from apps.sessions.models import InterviewSession
         from apps.analysis.models import AnalysisPipelineLog
-        from django.utils import timezone
 
         session = InterviewSession.objects.get(id=session_id)
         session.status = InterviewSession.Status.PROCESSING
