@@ -14,9 +14,9 @@ def add_numbers(x: int, y: int) -> int:
     bind=True,
     name='apps.analysis.tasks.analyze_session',
     max_retries=3,
-    default_retry_delay=60,
+    default_retry_delay=10,
     queue='analysis',
 )
 def analyze_session(self, session_id: str) -> str:
-    logger.info(f'Starting analysis for {session_id}')
+    logger.info(f'Starting multimodal analysis in ml_worker for session_id: {session_id}')
     return 'ok'

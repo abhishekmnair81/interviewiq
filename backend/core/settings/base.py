@@ -184,6 +184,8 @@ SPECTACULAR_SETTINGS = {
 }
 
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='memory://')
+if USE_SQLITE or 'redis' in CELERY_BROKER_URL:
+    CELERY_BROKER_URL = 'memory://'
 CELERY_RESULT_BACKEND = 'django-db'
 CELERY_CACHE_BACKEND = 'django-cache'
 CELERY_TIMEZONE = config('CELERY_TIMEZONE', default='UTC')
