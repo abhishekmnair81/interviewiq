@@ -198,7 +198,13 @@ CELERY_TASK_ROUTES = {
 }
 
 REDIS_HOST = config('REDIS_HOST', default='')
-if REDIS_HOST:
+if USE_SQLITE or not REDIS_HOST or REDIS_HOST == 'redis':
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+    }
+else:
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.redis.RedisCache',
@@ -207,12 +213,6 @@ if REDIS_HOST:
                 'socket_connect_timeout': 5,
                 'socket_timeout': 5,
             },
-        }
-    }
-else:
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         }
     }
 
