@@ -69,13 +69,21 @@ export default function DashboardPage() {
       </nav>
 
       <main className="max-w-5xl mx-auto py-10 px-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 mb-8">
-          <h2 className="text-3xl font-extrabold text-white mb-2">
-            Welcome back, {profile?.full_name || 'Candidate'}!
-          </h2>
-          <p className="text-slate-400">
-            Multimodal AI Interview Coaching Dashboard — Speech, Facial & Quality Analysis
-          </p>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 className="text-3xl font-extrabold text-white mb-2">
+              Welcome back, {profile?.full_name || 'Candidate'}!
+            </h2>
+            <p className="text-slate-400">
+              Multimodal AI Interview Coaching Dashboard — Speech, Facial & Quality Analysis
+            </p>
+          </div>
+          <Link
+            href="/record"
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg transition"
+          >
+            🎙️ New Practice Session
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

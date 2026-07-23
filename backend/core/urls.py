@@ -5,6 +5,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from apps.sessions.views import RandomQuestionView
 
 
 def health_check(request):
@@ -17,6 +18,7 @@ urlpatterns = [
 
     path('api/users/', include('apps.users.urls')),
     path('api/sessions/', include('apps.sessions.urls')),
+    path('api/questions/random/', RandomQuestionView.as_view(), name='questions-random-global'),
     path('api/analysis/', include('apps.analysis.urls')),
     path('api/reports/', include('apps.reports.urls')),
 

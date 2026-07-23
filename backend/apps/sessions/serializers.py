@@ -1,21 +1,86 @@
+import os
 from rest_framework import serializers
-from .models import InterviewSession
+from .models import InterviewSession, Question
+
+ALLOWED_VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi']
+MAX_VIDEO_SIZE_BYTES = 100 * 1024 * 1024  # 100MB
 
 
-class InterviewSessionSerializer(serializers.ModelSerializer):
+class QuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Question
+        fields = ('id', 'text', 'category', 'difficulty', 'created_at')
+        read_only_fields = ('id', 'created_at')
+
+
+class InterviewSessionCreateSerializer(serializers.ModelSerializer):
+    question_id = serializers.UUIDField(required=False, write_only=True)
+
     class Meta:
         model = InterviewSession
-        fields = [
-            'id', 'user', 'question', 'question_category',
-            'video_url', 'status', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'user', 'status', 'created_at', 'updated_at']
+        fields = ('id', 'question', 'question_category', 'question_id', 'status', 'created_at')
+        read_only_fields = ('id', 'status', 'created_at')
 
     def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
+        question_id = validated_data.pop('question_id', None)
+        user = self.context['request'].user
+
+        if question_id:
+            try:
+                q_obj = Question.objects.get(id=question_id)
+                validated_data['question_ref'] = q_obj
+                if not validated_data.get('question'):
+                    validated_data['question'] = q_obj.text
+                if not validated_data.get('question_category'):
+                    validated_data['question_category'] = q_obj.category
+            except Question.DoesNotExist:
+                raise serializers.ValidationError({"question_id": "Question not found."})
+
+        if not validated_data.get('question'):
+            # Auto pick random question if none provided
+            q_obj = Question.objects.order_by('?').first()
+            if q_obj:
+                validated_data['question_ref'] = q_obj
+                validated_data['question'] = q_obj.text
+                validated_data['question_category'] = q_obj.category
+            else:
+                validated_data['question'] = "Tell me about yourself and your professional background."
+                validated_data['question_category'] = 'behavioral'
+
+        validated_data['user'] = user
         return super().create(validated_data)
 
 
-class InterviewSessionDetailSerializer(InterviewSessionSerializer):
-    class Meta(InterviewSessionSerializer.Meta):
-        fields = InterviewSessionSerializer.Meta.fields + ['video_url']
+class InterviewSessionSerializer(serializers.ModelSerializer):
+    question_detail = QuestionSerializer(source='question_ref', read_only=True)
+
+    class Meta:
+        model = InterviewSession
+        fields = (
+            'id', 'question', 'question_category', 'question_detail',
+            'video_url', 'status', 'created_at', 'updated_at'
+        )
+        read_only_fields = ('id', 'user', 'status', 'created_at', 'updated_at')
+
+
+class SessionVideoUploadSerializer(serializers.Serializer):
+    video = serializers.FileField(required=True)
+
+    def validate_video(self, value):
+        ext = os.path.splitext(value.name)[1].lower()
+        if ext not in ALLOWED_VIDEO_EXTENSIONS:
+            raise serializers.ValidationError(
+                f"Unsupported file extension '{ext}'. Allowed extensions are: {', '.join(ALLOWED_VIDEO_EXTENSIONS)}"
+            )
+
+        if value.size > MAX_VIDEO_SIZE_BYTES:
+            raise serializers.ValidationError("File size exceeds maximum limit of 100MB.")
+
+        return value
+
+
+class SessionStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InterviewSession
+        fields = ('id', 'status', 'updated_at')
+        read_only_fields = ('id', 'status', 'updated_at')
