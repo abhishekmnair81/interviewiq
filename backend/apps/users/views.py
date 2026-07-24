@@ -21,6 +21,7 @@ class RegisterView(APIView):
     """
     Registers a new user account and returns JWT tokens immediately.
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     throttle_classes = [AnonRateThrottle]
 
@@ -44,6 +45,7 @@ class LoginView(APIView):
     """
     Authenticates user credentials and returns access and refresh JWT tokens.
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     throttle_classes = [AnonRateThrottle]
 
