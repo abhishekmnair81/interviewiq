@@ -1,4 +1,9 @@
+import io
+import textwrap
+from django.http import HttpResponse
 from rest_framework import viewsets, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from .models import AnalysisReport
 from .serializers import AnalysisReportSerializer
 
@@ -8,4 +13,117 @@ class AnalysisReportViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return AnalysisReport.objects.filter(session__user=self.request.user)
+        return AnalysisReport.objects.filter(
+            session__user=self.request.user
+        ).select_related('session').order_by('-created_at')
+
+    @action(detail=False, methods=['get'], url_path='by-session/(?P<session_id>[^/.]+)')
+    def by_session(self, request, session_id=None):
+        try:
+            report = AnalysisReport.objects.get(
+                session__id=session_id,
+                session__user=request.user
+            )
+            return Response(AnalysisReportSerializer(report).data)
+        except AnalysisReport.DoesNotExist:
+            return Response({'error': 'Report not found.'}, status=404)
+
+    @action(detail=True, methods=['get'], url_path='pdf')
+    def export_pdf(self, request, pk=None):
+        report = self.get_object()
+        session = report.session
+
+        def score_bar(score, width=30):
+            filled = int((score or 0) / 100 * width)
+            return '█' * filled + '░' * (width - filled)
+
+        tips_text = '\n'.join(
+            f'  {i + 1}. {tip}' for i, tip in enumerate(report.improvement_tips or [])
+        )
+        contradictions_text = '\n'.join(
+            f'  [{c["severity"].upper()}] {c["message"][:100]}...'
+            for c in (report.contradictions or [])
+        ) or '  None detected — consistent performance across all modalities.'
+
+        wpm = (report.speech_metrics or {}).get('wpm', 'N/A')
+        fillers = (report.speech_metrics or {}).get('filler_count', 'N/A')
+        eye_contact = (report.face_metrics or {}).get('eye_contact_percentage', 'N/A')
+        head_stability = (report.face_metrics or {}).get('head_stability', 'N/A')
+        star_score = (report.answer_metrics or {}).get('star_score', 'N/A')
+        relevance = (report.answer_metrics or {}).get('relevance_score', 'N/A')
+        confidence = (report.answer_metrics or {}).get('confidence_score', 'N/A')
+
+        transcript_preview = (report.transcript or 'Not available')[:500]
+        if len(report.transcript or '') > 500:
+            transcript_preview += '...'
+
+        content = textwrap.dedent(f"""
+        ╔══════════════════════════════════════════════════════════════════╗
+        ║              InterviewIQ — AI Interview Analysis Report          ║
+        ╚══════════════════════════════════════════════════════════════════╝
+
+        Candidate : {request.user.full_name or request.user.email}
+        Email     : {request.user.email}
+        Session ID: {session.id}
+        Date      : {report.created_at.strftime('%B %d, %Y %H:%M UTC')}
+        Category  : {session.question_category.upper()}
+        Question  : {session.question[:120]}
+
+        ──────────────────────────────────────────────────────────────────
+        SCORE SUMMARY
+        ──────────────────────────────────────────────────────────────────
+
+        Overall Score  : {report.overall_score or 0:.1f} / 100  {score_bar(report.overall_score or 0)}
+        Answer Quality : {report.answer_score or 0:.1f} / 100  {score_bar(report.answer_score or 0)}
+        Speech Delivery: {report.speech_score or 0:.1f} / 100  {score_bar(report.speech_score or 0)}
+        Facial Presence: {report.face_score or 0:.1f} / 100  {score_bar(report.face_score or 0)}
+
+        ──────────────────────────────────────────────────────────────────
+        DETAILED METRICS
+        ──────────────────────────────────────────────────────────────────
+
+        Speech Metrics
+          Words per Minute (WPM)    : {wpm}
+          Filler Words Detected     : {fillers}
+
+        Facial Metrics
+          Eye Contact               : {eye_contact}%
+          Head Stability            : {head_stability}
+
+        Answer Quality Metrics
+          Relevance Score           : {relevance}
+          STAR Structure Score      : {star_score}
+          Confidence / Clarity      : {confidence}
+
+        ──────────────────────────────────────────────────────────────────
+        CROSS-MODAL CONTRADICTIONS
+        ──────────────────────────────────────────────────────────────────
+
+        {contradictions_text}
+
+        ──────────────────────────────────────────────────────────────────
+        IMPROVEMENT TIPS
+        ──────────────────────────────────────────────────────────────────
+
+        {tips_text}
+
+        ──────────────────────────────────────────────────────────────────
+        TRANSCRIPT PREVIEW
+        ──────────────────────────────────────────────────────────────────
+
+        {transcript_preview}
+
+        ══════════════════════════════════════════════════════════════════
+        Generated by InterviewIQ AI Coaching Platform
+        https://github.com/abhishekmnair81/interviewiq
+        ══════════════════════════════════════════════════════════════════
+        """).strip()
+
+        buffer = io.BytesIO()
+        buffer.write(content.encode('utf-8'))
+        buffer.seek(0)
+
+        filename = f"InterviewIQ_Report_{session.id}_{report.created_at.strftime('%Y%m%d')}.txt"
+        response = HttpResponse(buffer.read(), content_type='text/plain; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
