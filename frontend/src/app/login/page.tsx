@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch, AuthResponse } from '@/lib/api';
@@ -11,6 +11,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Persistent Auth: Auto-redirect if token exists
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      router.push('/dashboard');
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,69 +44,72 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 text-slate-100 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h1 className="text-center text-4xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
-          InterviewIQ
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 text-slate-900 font-sans relative overflow-hidden">
+      {/* Soft Ambient Glows */}
+      <div className="ambient-blur w-[400px] h-[400px] bg-indigo-200/50 top-[-100px] left-1/2 -translate-x-1/2" />
+      <div className="ambient-blur w-[300px] h-[300px] bg-violet-200/40 bottom-[-50px] right-[-50px]" />
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center mb-8">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 shadow-xl shadow-indigo-500/25 mb-4">
+          <span className="text-xl font-black text-white">IQ</span>
+        </div>
+        <h1 className="text-3xl font-black tracking-tight text-slate-900">
+          Welcome to Interview<span className="glow-brand">IQ</span>
         </h1>
-        <h2 className="mt-3 text-center text-xl font-medium text-slate-400">
-          Sign in to your account
-        </h2>
+        <p className="mt-2 text-sm text-slate-600 font-normal">
+          Sign in to access your AI coaching studio
+        </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-slate-900/80 backdrop-blur-md py-8 px-6 shadow-2xl rounded-2xl border border-slate-800 sm:px-10">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4">
+        <div className="glass-card py-8 px-6 sm:px-10 rounded-3xl border border-slate-200/90 shadow-xl">
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center">
-              {error}
+            <div className="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold text-center">
+              ⚠️ {error}
             </div>
           )}
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-sm font-medium text-slate-300">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                 Email address
               </label>
-              <div className="mt-1">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-950/70 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-100 placeholder-slate-500 outline-none transition"
-                  placeholder="you@example.com"
-                />
-              </div>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-sm outline-none transition shadow-sm"
+                placeholder="you@example.com"
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                 Password
               </label>
-              <div className="mt-1">
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-950/70 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-100 placeholder-slate-500 outline-none transition"
-                  placeholder="••••••••"
-                />
-              </div>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-sm outline-none transition shadow-sm"
+                placeholder="••••••••"
+              />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-indigo-500/25 transition duration-200 disabled:opacity-50"
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 via-violet-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-extrabold rounded-2xl shadow-lg shadow-indigo-500/25 transition duration-200 text-sm disabled:opacity-50"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Signing in...' : 'Sign In to Dashboard →'}
             </button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-slate-400">
-            Don't have an account?{' '}
-            <Link href="/register" className="font-medium text-blue-400 hover:text-blue-300 transition">
+          <div className="mt-6 text-center text-xs text-slate-600">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="font-bold text-indigo-600 hover:text-indigo-500 transition">
               Create an account
             </Link>
           </div>

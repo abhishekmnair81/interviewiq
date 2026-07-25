@@ -1,4 +1,5 @@
 import logging
+import threading
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -18,10 +19,9 @@ def trigger_analysis_on_queue(sender, instance, created, **kwargs):
 
     if should_dispatch:
         from apps.analysis.tasks import analyze_session
-        logger.info(f'[Signal] Session {instance.id} queued with video_url — dispatching analyze_session task')
-        try:
-            analyze_session.delay(str(instance.id))
-        except Exception as err:
-            logger.warning(f'[Signal] Could not dispatch Celery task (running synchronously or offline): {err}')
-            # Run synchronously if Celery broker is offline/locmem
-            analyze_session(str(instance.id))
+        logger.info(f'[Signal] Session {instance.id} queued with video_url — starting analysis worker thread')
+
+        # Run analysis in background thread so HTTP response is instant & analysis completes immediately
+        t = threading.Thread(target=analyze_session, args=(str(instance.id),), daemon=True)
+        t.start()
+

@@ -71,6 +71,7 @@ class InterviewSession(models.Model):
         default=QuestionCategory.BEHAVIORAL
     )
     video_url = models.URLField(blank=True, null=True)
+    video_local_path = models.TextField(blank=True, null=True)  # Physical disk path for Whisper analysis
     status = models.CharField(
         max_length=20,
         choices=Status.choices,

@@ -66,9 +66,14 @@ class InterviewSessionViewSet(viewsets.ModelViewSet):
             saved_path = default_storage.save(filename, ContentFile(video_file.read()))
             video_url = request.build_absolute_uri(settings.MEDIA_URL + saved_path)
 
+        import os
+        from django.conf import settings as dj_settings
+        local_path = os.path.join(dj_settings.MEDIA_ROOT, saved_path.replace('/', os.sep))
+
         session.video_url = video_url
+        session.video_local_path = local_path
         session.status = InterviewSession.Status.QUEUED
-        session.save(update_fields=['video_url', 'status', 'updated_at'])
+        session.save(update_fields=['video_url', 'video_local_path', 'status', 'updated_at'])
 
         logger.info(f"Video uploaded for session {session.id}. URL: {video_url}")
 

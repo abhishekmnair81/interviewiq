@@ -15,6 +15,8 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 class InterviewSessionCreateSerializer(serializers.ModelSerializer):
     question_id = serializers.UUIDField(required=False, write_only=True)
+    # Allow blank/missing question — create() will auto-pick from the question bank
+    question = serializers.CharField(required=False, allow_blank=True, default='')
 
     class Meta:
         model = InterviewSession
@@ -34,7 +36,8 @@ class InterviewSessionCreateSerializer(serializers.ModelSerializer):
                 if not validated_data.get('question_category'):
                     validated_data['question_category'] = q_obj.category
             except Question.DoesNotExist:
-                raise serializers.ValidationError({"question_id": "Question not found."})
+                # question_id not in DB (e.g. fallback UUID) — use question text as-is
+                pass
 
         if not validated_data.get('question'):
             # Auto pick random question if none provided

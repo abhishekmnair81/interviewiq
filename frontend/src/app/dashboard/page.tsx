@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Area, AreaChart
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Area, AreaChart, Line
 } from 'recharts';
 import { apiFetch, UserProfile } from '@/lib/api';
 
@@ -24,26 +24,26 @@ interface SessionReport {
 }
 
 const categoryColor: Record<string, string> = {
-  behavioral: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30',
-  hr: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
-  technical: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+  behavioral: 'text-indigo-700 bg-indigo-50 border-indigo-200',
+  hr: 'text-sky-700 bg-sky-50 border-sky-200',
+  technical: 'text-emerald-700 bg-emerald-50 border-emerald-200',
 };
 
 const scoreGrade = (s: number) => {
-  if (s >= 85) return 'text-emerald-400';
-  if (s >= 70) return 'text-blue-400';
-  if (s >= 55) return 'text-amber-400';
-  return 'text-rose-400';
+  if (s >= 85) return 'text-emerald-600';
+  if (s >= 70) return 'text-indigo-600';
+  if (s >= 55) return 'text-amber-600';
+  return 'text-rose-600';
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload?.length) {
     return (
-      <div className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 shadow-xl text-sm">
-        <p className="text-slate-400 mb-1">Session {label}</p>
+      <div className="glass-card border border-slate-200/90 rounded-2xl px-4 py-3 shadow-xl text-xs backdrop-blur-xl">
+        <p className="text-slate-500 mb-1 font-semibold">Session #{label}</p>
         {payload.map((p: any) => (
-          <p key={p.dataKey} style={{ color: p.stroke }}>
-            {p.name}: <strong>{p.value?.toFixed(1)}</strong>
+          <p key={p.dataKey} style={{ color: p.stroke }} className="font-bold">
+            {p.name}: <span className="text-slate-900">{p.value?.toFixed(1)}</span>
           </p>
         ))}
       </div>
@@ -90,8 +90,8 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600" />
       </div>
     );
   }
@@ -112,152 +112,177 @@ export default function DashboardPage() {
   const latest = reports[0]?.overall_score?.toFixed(1) || '—';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Nav */}
-      <nav className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-6 py-4 flex justify-between items-center">
-        <div className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-          InterviewIQ
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-slate-400 hidden sm:block">{profile?.full_name || profile?.email}</span>
-          <Link
-            href="/record"
-            className="px-4 py-2 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-lg transition"
-          >
-            🎙️ New Session
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
-          >
-            Logout
-          </button>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans relative overflow-hidden">
+      {/* Background Soft Glows */}
+      <div className="ambient-blur w-[600px] h-[600px] bg-indigo-200/40 top-[-200px] left-1/2 -translate-x-1/2" />
+      <div className="ambient-blur w-[400px] h-[400px] bg-sky-200/30 bottom-[-100px] right-[-100px]" />
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-8">
-        {/* Hero Welcome */}
-        <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/30 border border-slate-800 rounded-2xl p-8">
-          <h1 className="text-3xl font-extrabold text-white mb-1">
-            Welcome back, {profile?.full_name?.split(' ')[0] || 'Candidate'} 👋
-          </h1>
-          <p className="text-slate-400 mb-6">Here's your interview performance dashboard.</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Header Navigation */}
+      <header className="sticky top-0 z-30 glass-nav px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+              <span className="text-xl font-black text-white">IQ</span>
+            </div>
+            <span className="text-2xl font-bold tracking-tight text-slate-900 font-sans">
+              Interview<span className="glow-brand">IQ</span>
+            </span>
+          </Link>
+
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-slate-600 font-semibold hidden sm:block">
+              {profile?.full_name || profile?.email}
+            </span>
+            <Link
+              href="/record"
+              className="text-sm font-bold px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-lg shadow-indigo-500/20 transition hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
+            >
+              <span>🎙️</span> New Practice Session
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="text-xs font-bold px-3 py-2 text-slate-500 hover:text-slate-900 transition rounded-xl hover:bg-slate-200/60"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Dashboard Workspace */}
+      <main className="max-w-7xl mx-auto px-6 py-10 space-y-8 relative z-10">
+        {/* Banner Welcome */}
+        <div className="glass-card p-8 rounded-3xl border border-slate-200/80 relative overflow-hidden">
+          <div className="flex flex-col md:flex-row justify-between md:items-center gap-6">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold mb-3">
+                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" /> Candidate Performance Hub
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                Welcome back, {profile?.full_name?.split(' ')[0] || 'Candidate'} 👋
+              </h1>
+              <p className="text-sm text-slate-600 mt-1 font-normal">Track your multimodal AI interview performance analytics.</p>
+            </div>
+
+            <Link
+              href="/record"
+              className="px-6 py-3.5 bg-gradient-to-r from-indigo-600 via-violet-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-extrabold rounded-2xl shadow-xl shadow-indigo-500/25 transition text-sm text-center"
+            >
+              Launch Practice Studio →
+            </Link>
+          </div>
+
+          {/* Quick Metrics Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
             {[
-              { label: 'Sessions', value: reports.length, unit: 'total' },
-              { label: 'Latest Score', value: latest, unit: '/100' },
-              { label: 'Best Score', value: best, unit: '/100' },
-              { label: 'Avg Overall', value: avg(allOverall), unit: '/100' },
+              { label: 'Total Sessions', value: reports.length, unit: 'sessions', icon: '📊' },
+              { label: 'Latest Score', value: latest, unit: '/100', icon: '⚡' },
+              { label: 'Personal Best', value: best, unit: '/100', icon: '🏆' },
+              { label: 'Average Score', value: avg(allOverall), unit: '/100', icon: '🎯' },
             ].map(stat => (
-              <div key={stat.label} className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
-                <div className="text-xs text-slate-500 mb-1">{stat.label}</div>
-                <div className="text-2xl font-bold text-white">
-                  {stat.value}<span className="text-sm text-slate-400 ml-1">{stat.unit}</span>
+              <div key={stat.label} className="bg-white/80 border border-slate-200/90 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
+                  <span>{stat.label}</span>
+                  <span>{stat.icon}</span>
+                </div>
+                <div className="text-2xl font-black text-slate-900 tracking-tight">
+                  {stat.value}<span className="text-xs text-slate-500 ml-1 font-semibold">{stat.unit}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Progress Chart */}
+        {/* Analytics Progress Chart */}
         {chartData.length > 1 && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-6">
-              Score Progress Over Time
+          <div className="glass-card p-6 rounded-3xl border border-slate-200/80">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-6 flex items-center gap-2">
+              <span>📈</span> Multimodal Score Trend
             </h2>
-            <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="gOverall" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#818cf8" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="session" tick={{ fill: '#475569', fontSize: 12 }} label={{ value: 'Session', position: 'insideBottom', fill: '#475569', fontSize: 11 }} />
-                <YAxis domain={[0, 100]} tick={{ fill: '#475569', fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
+                <XAxis dataKey="session" tick={{ fill: '#64748b', fontSize: 11 }} />
+                <YAxis domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="Overall" name="Overall" stroke="#818cf8" fill="url(#gOverall)" strokeWidth={2.5} dot={{ fill: '#818cf8', strokeWidth: 0, r: 4 }} />
-                <Line type="monotone" dataKey="Speech" name="Speech" stroke="#34d399" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
-                <Line type="monotone" dataKey="Answer" name="Answer" stroke="#f59e0b" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+                <Area type="monotone" dataKey="Overall" name="Overall" stroke="#4f46e5" fill="url(#gOverall)" strokeWidth={3} dot={{ fill: '#4f46e5', strokeWidth: 0, r: 4 }} />
+                <Line type="monotone" dataKey="Speech" name="Speech" stroke="#059669" strokeWidth={2} dot={false} strokeDasharray="4 2" />
+                <Line type="monotone" dataKey="Answer" name="Answer" stroke="#d97706" strokeWidth={2} dot={false} strokeDasharray="4 2" />
               </AreaChart>
             </ResponsiveContainer>
-            <div className="flex gap-5 mt-3 justify-center text-xs text-slate-500">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-indigo-400 inline-block rounded" /> Overall</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-emerald-400 inline-block rounded" /> Speech</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-amber-400 inline-block rounded" /> Answer</span>
-            </div>
           </div>
         )}
 
-        {/* AI Capabilities Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            { color: 'text-blue-400', icon: '🎤', title: 'Speech Analysis', sub: 'Whisper + Librosa', desc: 'WPM pacing, filler word detection, pitch & volume consistency' },
-            { color: 'text-purple-400', icon: '👁️', title: 'Facial Analysis', sub: 'MediaPipe + DeepFace', desc: 'Eye contact tracking, head stability, expression scoring' },
-            { color: 'text-indigo-400', icon: '🧠', title: 'Answer Quality', sub: 'STAR + Cosine Similarity', desc: 'Relevance scoring, STAR structure detection, confidence analysis' },
-          ].map(c => (
-            <div key={c.title} className="bg-slate-900/70 border border-slate-800 rounded-xl p-5">
-              <div className="text-2xl mb-2">{c.icon}</div>
-              <div className={`text-sm font-bold ${c.color} mb-0.5`}>{c.title}</div>
-              <div className="text-xs text-slate-500 mb-2">{c.sub}</div>
-              <p className="text-xs text-slate-400">{c.desc}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Session History */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Session History</h2>
-            {reports.length > 0 && (
-              <span className="text-xs text-slate-500">{reports.length} session{reports.length !== 1 ? 's' : ''}</span>
-            )}
+        {/* Session History Section */}
+        <div className="glass-card rounded-3xl border border-slate-200/80 overflow-hidden">
+          <div className="px-6 py-5 border-b border-slate-200/80 flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+              <span>📜</span> Practice Logs &amp; Reports
+            </h2>
+            <span className="text-xs font-bold text-slate-500">
+              {reports.length} Session{reports.length !== 1 ? 's' : ''} Completed
+            </span>
           </div>
 
           {reports.length === 0 ? (
             <div className="px-6 py-16 text-center">
-              <div className="text-4xl mb-4">🎙️</div>
-              <p className="text-slate-400 mb-2">No sessions yet.</p>
-              <p className="text-sm text-slate-600 mb-6">Record your first mock interview to see your AI analysis here.</p>
+              <div className="w-16 h-16 rounded-3xl bg-indigo-100 border border-indigo-200 text-indigo-600 flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm">
+                🎙️
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">No Practice Logs Yet</h3>
+              <p className="text-sm text-slate-600 max-w-sm mx-auto mb-6 font-normal">
+                Record your first AI interview practice session to unlock real-time feedback &amp; reports.
+              </p>
               <Link
                 href="/record"
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-500 hover:to-indigo-500 transition"
+                className="px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-500/25 transition text-sm inline-block"
               >
-                Start First Session
+                Start First AI Practice Session
               </Link>
             </div>
           ) : (
-            <div className="divide-y divide-slate-800">
+            <div className="divide-y divide-slate-200/80">
               {reports.map((r) => {
                 const d = new Date(r.session_created_at || r.created_at).toLocaleDateString('en-US', {
                   month: 'short', day: 'numeric', year: 'numeric',
                 });
-                const catClass = categoryColor[r.session_category] || 'text-slate-400 bg-slate-500/10 border-slate-500/30';
+                const catClass = categoryColor[r.session_category] || 'text-slate-700 bg-slate-100 border-slate-200';
                 return (
-                  <div key={r.id} className="px-6 py-4 hover:bg-slate-800/30 transition flex items-center justify-between gap-4">
+                  <div key={r.id} className="px-6 py-4 hover:bg-slate-100/60 transition flex items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${catClass}`}>
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border capitalize ${catClass}`}>
                           {r.session_category}
                         </span>
-                        <span className="text-xs text-slate-500">{d}</span>
+                        <span className="text-xs text-slate-500 font-medium">{d}</span>
                         {r.is_partial && (
-                          <span className="text-xs text-amber-400 border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 rounded-full">partial</span>
+                          <span className="text-[11px] font-bold text-amber-800 border border-amber-300 bg-amber-50 px-2 py-0.5 rounded-full">
+                            partial
+                          </span>
                         )}
                       </div>
-                      <p className="text-sm text-slate-200 truncate max-w-lg">{r.session_question}</p>
+                      <p className="text-sm font-bold text-slate-900 truncate max-w-xl">
+                        &quot;{r.session_question}&quot;
+                      </p>
                     </div>
-                    <div className="flex items-center gap-4 flex-shrink-0">
+
+                    <div className="flex items-center gap-5 flex-shrink-0">
                       <div className="text-right hidden sm:block">
-                        <div className={`text-2xl font-bold ${scoreGrade(r.overall_score)}`}>
+                        <div className={`text-2xl font-black ${scoreGrade(r.overall_score)}`}>
                           {r.overall_score?.toFixed(0)}
                         </div>
-                        <div className="text-xs text-slate-500">Overall</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Overall Score</div>
                       </div>
+
                       <Link
                         href={`/report/${r.session}`}
-                        className="px-4 py-2 text-sm bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white rounded-lg transition font-medium"
+                        className="px-4 py-2 text-xs font-bold glass-card hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-2xl border border-indigo-200 transition shadow-sm"
                       >
                         View Report →
                       </Link>

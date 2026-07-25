@@ -37,6 +37,10 @@ def analyze_session(self, session_id: str) -> str:
         session.status = InterviewSession.Status.PROCESSING
         session.save(update_fields=['status', 'updated_at'])
 
+        # Use physical disk path for analysis (more reliable than HTTP URL)
+        video_path = session.video_local_path or session.video_url
+        logger.info(f'[{session_id}] video_path resolved to: {video_path}')
+
         # ── 1. Speech Pipeline ───────────────────────────────────────────────
         speech_log, _ = AnalysisPipelineLog.objects.get_or_create(
             session=session, pipeline_name='speech'
@@ -44,7 +48,7 @@ def analyze_session(self, session_id: str) -> str:
         speech_log.status = AnalysisPipelineLog.Status.RUNNING
         speech_log.save(update_fields=['status'])
         try:
-            speech_res = analyze_speech(video_path=session.video_url)
+            speech_res = analyze_speech(video_path=video_path)
             speech_log.status = AnalysisPipelineLog.Status.DONE
         except Exception as e:
             logger.warning(f'Speech pipeline error (non-fatal): {e}')
@@ -55,6 +59,7 @@ def analyze_session(self, session_id: str) -> str:
         speech_log.completed_at = timezone.now()
         speech_log.save(update_fields=['status', 'completed_at', 'error_message'])
 
+
         # ── 2. Facial Pipeline ───────────────────────────────────────────────
         facial_log, _ = AnalysisPipelineLog.objects.get_or_create(
             session=session, pipeline_name='facial'
@@ -62,7 +67,7 @@ def analyze_session(self, session_id: str) -> str:
         facial_log.status = AnalysisPipelineLog.Status.RUNNING
         facial_log.save(update_fields=['status'])
         try:
-            facial_res = analyze_facial(video_path=session.video_url)
+            facial_res = analyze_facial(video_path=video_path)
             facial_log.status = AnalysisPipelineLog.Status.DONE
         except Exception as e:
             logger.warning(f'Facial pipeline error (non-fatal): {e}')
