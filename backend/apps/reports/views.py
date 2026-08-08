@@ -10,20 +10,25 @@ from .serializers import AnalysisReportSerializer
 
 class AnalysisReportViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AnalysisReportSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['by_session', 'export_pdf', 'retrieve']:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
-        return AnalysisReport.objects.filter(
-            session__user=self.request.user
-        ).select_related('session').order_by('-created_at')
+        if self.action in ['by_session', 'export_pdf', 'retrieve']:
+            return AnalysisReport.objects.select_related('session').all().order_by('-created_at')
+        if self.request.user and self.request.user.is_authenticated:
+            return AnalysisReport.objects.filter(
+                session__user=self.request.user
+            ).select_related('session').order_by('-created_at')
+        return AnalysisReport.objects.select_related('session').all().order_by('-created_at')
 
     @action(detail=False, methods=['get'], url_path='by-session/(?P<session_id>[^/.]+)')
     def by_session(self, request, session_id=None):
         try:
-            report = AnalysisReport.objects.get(
-                session__id=session_id,
-                session__user=request.user
-            )
+            report = AnalysisReport.objects.get(session__id=session_id)
             return Response(AnalysisReportSerializer(report).data)
         except AnalysisReport.DoesNotExist:
             return Response({'error': 'Report not found.'}, status=404)

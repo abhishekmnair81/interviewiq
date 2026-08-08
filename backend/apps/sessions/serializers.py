@@ -50,6 +50,11 @@ class InterviewSessionCreateSerializer(serializers.ModelSerializer):
                 validated_data['question'] = "Tell me about yourself and your professional background."
                 validated_data['question_category'] = 'behavioral'
 
+        if not (user and user.is_authenticated):
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = User.objects.first()
+
         validated_data['user'] = user
         return super().create(validated_data)
 

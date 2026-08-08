@@ -47,16 +47,16 @@ export default function LoginPage() {
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 text-slate-900 font-sans relative overflow-hidden">
       {/* Soft Ambient Glows */}
       <div className="ambient-blur w-[400px] h-[400px] bg-indigo-200/50 top-[-100px] left-1/2 -translate-x-1/2" />
-      <div className="ambient-blur w-[300px] h-[300px] bg-violet-200/40 bottom-[-50px] right-[-50px]" />
+      <div className="ambient-blur w-[300px] h-[300px] bg-emerald-200/40 bottom-[-50px] right-[-50px]" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center mb-8">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 shadow-xl shadow-indigo-500/25 mb-4">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-600 shadow-md shadow-indigo-600/20 mb-4">
           <span className="text-xl font-black text-white">IQ</span>
         </div>
         <h1 className="text-3xl font-black tracking-tight text-slate-900">
-          Welcome to Interview<span className="glow-brand">IQ</span>
+          Welcome to Interview<span className="text-indigo-600">IQ</span>
         </h1>
-        <p className="mt-2 text-sm text-slate-600 font-normal">
+        <p className="mt-2 text-xs text-slate-600 font-normal">
           Sign in to access your AI coaching studio
         </p>
       </div>
@@ -71,7 +71,7 @@ export default function LoginPage() {
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-1.5">
                 Email address
               </label>
               <input
@@ -79,13 +79,13 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-sm outline-none transition shadow-sm"
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-xs outline-none transition shadow-sm"
                 placeholder="you@example.com"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-1.5">
                 Password
               </label>
               <input
@@ -93,7 +93,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-sm outline-none transition shadow-sm"
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-xs outline-none transition shadow-sm"
                 placeholder="••••••••"
               />
             </div>
@@ -101,7 +101,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 via-violet-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-extrabold rounded-2xl shadow-lg shadow-indigo-500/25 transition duration-200 text-sm disabled:opacity-50"
+              className="w-full py-3.5 px-4 btn-primary font-black rounded-2xl text-xs shadow-md transition disabled:opacity-50"
             >
               {loading ? 'Signing in...' : 'Sign In to Dashboard →'}
             </button>

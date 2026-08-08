@@ -72,6 +72,20 @@ class InterviewSession(models.Model):
     )
     video_url = models.URLField(blank=True, null=True)
     video_local_path = models.TextField(blank=True, null=True)  # Physical disk path for Whisper analysis
+    class InterviewMode(models.TextChoices):
+        RECORDED = 'recorded', 'Recorded'
+        LIVE = 'live', 'Live'
+
+    interview_mode = models.CharField(
+        max_length=20,
+        choices=InterviewMode.choices,
+        default=InterviewMode.RECORDED
+    )
+    conversation_history = models.JSONField(default=list, blank=True)
+    live_face_readings = models.JSONField(default=list, blank=True)
+    job_role = models.CharField(max_length=100, default='Software Engineer', blank=True)
+    difficulty = models.CharField(max_length=20, default='medium', blank=True)
+
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
