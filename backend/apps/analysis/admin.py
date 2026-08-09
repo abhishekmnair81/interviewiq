@@ -1,7 +1,6 @@
 from django.contrib import admin
 from .models import AnalysisPipelineLog
 
-
 @admin.register(AnalysisPipelineLog)
 class AnalysisPipelineLogAdmin(admin.ModelAdmin):
     list_display = ['id', 'session', 'pipeline_name', 'status', 'started_at', 'completed_at']

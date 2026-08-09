@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from .models import AnalysisPipelineLog
 
-
 class AnalysisPipelineLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AnalysisPipelineLog

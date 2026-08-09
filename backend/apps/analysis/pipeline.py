@@ -8,7 +8,6 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# Extended Filler Words & Multi-word Phrases
 FILLER_WORDS = {
     'um', 'uh', 'err', 'ah', 'hmm', 'hmmm',
     'you know', 'sort of', 'kind of', 'to be honest',
@@ -76,7 +75,6 @@ STAR_PATTERNS = {
     ],
 }
 
-
 def _cosine_similarity(vec_a: list, vec_b: list) -> float:
     dot = sum(a * b for a, b in zip(vec_a, vec_b))
     mag_a = math.sqrt(sum(a * a for a in vec_a))
@@ -84,7 +82,6 @@ def _cosine_similarity(vec_a: list, vec_b: list) -> float:
     if mag_a == 0 or mag_b == 0:
         return 0.0
     return dot / (mag_a * mag_b)
-
 
 def _word_freq_vector(text_a: str, text_b: str):
     words_a = [w for w in re.findall(r'\b\w+\b', text_a.lower()) if w not in STOP_WORDS and len(w) > 1]
@@ -96,19 +93,17 @@ def _word_freq_vector(text_a: str, text_b: str):
     freq_b = [words_b.count(w) for w in vocab]
     return freq_a, freq_b
 
-
 def _compute_relevance(question: str, answer: str) -> float:
     if not question or not answer or not answer.strip():
         return 0.0
     vec_a, vec_b = _word_freq_vector(question, answer)
     similarity = _cosine_similarity(vec_a, vec_b)
-    
+
     words_answer = [w for w in re.findall(r'\b\w+\b', answer.lower()) if w not in STOP_WORDS]
     length_bonus = min(25.0, len(words_answer) * 0.4)
-    
+
     relevance = round(50.0 + similarity * 35.0 + length_bonus, 1)
     return min(100.0, max(50.0, relevance))
-
 
 def _detect_star(answer: str) -> dict:
     if not answer:
@@ -128,7 +123,6 @@ def _detect_star(answer: str) -> dict:
     star_count = sum(1 for v in component_scores.values() if v)
     star_score = round((star_count / 4.0) * 100.0, 1)
 
-    # Detect Quantifiable Impact (percentages, dollar amounts, team size, scale)
     quant_patterns = [
         r'\d+\s?%', r'\d+\s?percent', r'\$\d+', r'\d+\s?dollars',
         r'\bby \d+\b', r'\bin \d+ (days|weeks|months|years)\b',
@@ -139,7 +133,6 @@ def _detect_star(answer: str) -> dict:
         quant_matches.extend(re.findall(qp, answer_lower))
     quantifiable_metrics_count = len(quant_matches)
 
-    # Detect Executive Action Verbs
     words = re.findall(r'\b\w+\b', answer_lower)
     action_verbs_found = [w for w in words if w in ACTION_VERBS]
     action_verbs_count = len(set(action_verbs_found))
@@ -151,7 +144,6 @@ def _detect_star(answer: str) -> dict:
         'quantifiable_metrics_count': quantifiable_metrics_count,
         'action_verbs_count': action_verbs_count,
     }
-
 
 def _detect_vague_language(answer: str) -> dict:
     if not answer:
@@ -178,7 +170,6 @@ def _detect_vague_language(answer: str) -> dict:
         'executive_tone_score': executive_tone_score,
     }
 
-
 def analyze_answer(question: str, transcript: str) -> dict:
     if not transcript or not transcript.strip():
         return {
@@ -199,7 +190,6 @@ def analyze_answer(question: str, transcript: str) -> dict:
     star_result = _detect_star(transcript)
     vague_result = _detect_vague_language(transcript)
 
-    # Calculate answer score with bonuses for metrics and action verbs
     bonus = min(15.0, (star_result['quantifiable_metrics_count'] * 4.0) + (star_result['action_verbs_count'] * 2.0))
     raw_answer_score = (
         0.35 * relevance_score +
@@ -252,7 +242,6 @@ def analyze_answer(question: str, transcript: str) -> dict:
         'answer_feedback': ' '.join(feedback),
     }
 
-
 def extract_acoustic_audio_metrics(video_path: str) -> dict:
     """
     Extracts raw audio WAV file from video using ffmpeg and calculates exact acoustic
@@ -285,7 +274,6 @@ def extract_acoustic_audio_metrics(video_path: str) -> dict:
         temp_wav_path = temp_wav.name
         temp_wav.close()
 
-        # Extract 16kHz Mono PCM WAV audio from video
         cmd = f'"{ffmpeg_exe}" -y -i "{video_path}" -vn -ac 1 -ar 16000 -acodec pcm_s16le "{temp_wav_path}"'
         res_code = os.system(cmd)
         if res_code != 0 or not os.path.exists(temp_wav_path):
@@ -306,7 +294,6 @@ def extract_acoustic_audio_metrics(video_path: str) -> dict:
         if duration_sec <= 0.5:
             return default_res
 
-        # Frame windowing (e.g. 50ms chunks)
         chunk_size = int(sample_rate * 0.05)
         n_chunks = len(audio_samples) // chunk_size
 
@@ -316,7 +303,6 @@ def extract_acoustic_audio_metrics(video_path: str) -> dict:
         chunks = audio_samples[:n_chunks * chunk_size].reshape(n_chunks, chunk_size)
         rms_energies = np.sqrt(np.mean(chunks ** 2, axis=1))
 
-        # Dynamic threshold for voice vs silence
         max_energy = np.max(rms_energies) if np.max(rms_energies) > 0 else 1.0
         normalized_energy = rms_energies / max_energy
         silence_threshold = 0.06
@@ -327,7 +313,6 @@ def extract_acoustic_audio_metrics(video_path: str) -> dict:
         total_silence_sec = round(duration_sec - active_speech_sec, 2)
         active_speech_ratio = round(min(100.0, (active_speech_sec / duration_sec) * 100.0), 1)
 
-        # Detect pause streaks
         pauses = []
         current_pause = 0
         for is_speech in speech_mask:
@@ -340,22 +325,19 @@ def extract_acoustic_audio_metrics(video_path: str) -> dict:
         if current_pause > 0:
             pauses.append(current_pause * 0.05)
 
-        # Count total pauses (>0.6s) and long awkward pauses (>2.0s)
         significant_pauses = [p for p in pauses if p >= 0.6]
         long_pauses = [p for p in pauses if p >= 2.0]
         pause_count = len(significant_pauses)
         long_pauses_count = len(long_pauses)
 
-        # Volume stability (standard deviation of active speech energies)
         active_energies = normalized_energy[speech_mask]
         if len(active_energies) > 5:
             std_energy = np.std(active_energies)
-            # Ideal volume variation std ~ 0.15 - 0.25
+
             volume_stability = round(max(40.0, min(98.0, 100.0 - (std_energy * 100.0 - 20.0))), 1)
         else:
             volume_stability = 75.0
 
-        # Monotony index via zero-crossing rate variance
         zcr_list = []
         for ch in chunks[speech_mask]:
             zero_crossings = np.nonzero(np.diff(ch > 0))[0]
@@ -399,7 +381,6 @@ def extract_acoustic_audio_metrics(video_path: str) -> dict:
             except Exception:
                 pass
 
-
 def detect_contradictions(
     speech_score: float,
     face_score: float,
@@ -417,7 +398,6 @@ def detect_contradictions(
     if answer_metrics is None:
         answer_metrics = {}
 
-    # 1. Content vs Delivery Mismatch
     if answer_score > 75 and speech_score < 55 and face_score < 55:
         contradictions.append({
             'type': 'mixed_signal_high_answer_low_delivery',
@@ -430,7 +410,6 @@ def detect_contradictions(
             ),
         })
 
-    # 2. Fluent Speech vs Weak STAR Content
     if speech_score > 75 and answer_score < 50 and answer_score > 0:
         contradictions.append({
             'type': 'fluent_delivery_weak_content',
@@ -442,7 +421,6 @@ def detect_contradictions(
             ),
         })
 
-    # 3. Visual Eye Contact vs Verbal Fillers / Pauses
     if eye_contact_pct > 80 and (filler_count > 4 or acoustic_metrics.get('long_pauses_count', 0) >= 2):
         contradictions.append({
             'type': 'visual_confidence_verbal_uncertainty',
@@ -455,7 +433,6 @@ def detect_contradictions(
             ),
         })
 
-    # 4. Fast Speech Rate vs Omitted Result / Impact Metrics
     if wpm > 165 and answer_metrics.get('quantifiable_metrics_count', 0) == 0:
         contradictions.append({
             'type': 'rushing_through_answer_without_metrics',
@@ -467,7 +444,6 @@ def detect_contradictions(
             ),
         })
 
-    # 5. Acoustic Monotony vs High Structure
     if acoustic_metrics.get('pitch_variance_monotony') == 'Flat & Monotone' and star_count >= 3:
         contradictions.append({
             'type': 'monotone_voice_high_star',
@@ -480,7 +456,6 @@ def detect_contradictions(
         })
 
     return contradictions
-
 
 def generate_report(
     speech_res: dict,
@@ -563,7 +538,6 @@ def generate_report(
         'contradictions': contradictions,
     }
 
-
 def _extract_transcript_with_whisper(video_path: str) -> str:
     """Uses Whisper AI model to transcribe audio directly from video file."""
     if not video_path:
@@ -601,7 +575,6 @@ def _extract_transcript_with_whisper(video_path: str) -> str:
     except Exception as err:
         logger.error(f"Whisper transcription failed for {video_path}: {err}")
         return ""
-
 
 def analyze_speech(video_path: str = None, transcript_text: str = None) -> dict:
     """
@@ -642,7 +615,6 @@ def analyze_speech(video_path: str = None, transcript_text: str = None) -> dict:
     words = re.findall(r'\b\w+\b', transcript_text.lower())
     total_words = len(words)
 
-    # Use actual active speech duration if available from acoustic analysis, else estimate
     if acoustic['active_speech_sec'] > 3.0:
         duration_min = acoustic['active_speech_sec'] / 60.0
     else:
@@ -650,7 +622,6 @@ def analyze_speech(video_path: str = None, transcript_text: str = None) -> dict:
 
     wpm = round(total_words / duration_min, 1)
 
-    # Filler word & phrase detection
     detected_fillers = []
     for word in words:
         if word in SINGLE_FILLER_WORDS:
@@ -664,7 +635,6 @@ def analyze_speech(video_path: str = None, transcript_text: str = None) -> dict:
     filler_count = len(detected_fillers)
     filler_rate_per_min = filler_count / duration_min
 
-    # WPM Scoring
     if 130 <= wpm <= 160:
         wpm_score = 100.0
     elif wpm < 130:
@@ -674,7 +644,6 @@ def analyze_speech(video_path: str = None, transcript_text: str = None) -> dict:
 
     filler_score = max(30.0, 100.0 - (filler_rate_per_min * 6.0))
 
-    # Overall Speech Score includes Acoustic Monotony and Volume Stability
     speech_score = round(
         0.35 * wpm_score +
         0.25 * filler_score +
@@ -716,7 +685,6 @@ def analyze_speech(video_path: str = None, transcript_text: str = None) -> dict:
         'vocal_clarity_score': acoustic['vocal_clarity_score'],
         'speech_feedback': ' '.join(feedback),
     }
-
 
 def analyze_facial(video_path: str = None) -> dict:
     """
@@ -764,7 +732,6 @@ def analyze_facial(video_path: str = None) -> dict:
                 break
             total_frames += 1
 
-            # Sample 1 out of every 12 frames
             if total_frames % 12 == 0:
                 checked_frames += 1
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -782,7 +749,6 @@ def analyze_facial(video_path: str = None) -> dict:
 
         eye_contact_percentage = round(min(100.0, (faces_found / float(checked_frames)) * 100.0), 1)
 
-        # Head motion stability (calculate standard deviation of face center position)
         if len(face_centers_x) > 3:
             std_x = np.std(face_centers_x)
             std_y = np.std(face_centers_y)

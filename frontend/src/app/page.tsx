@@ -7,7 +7,6 @@ import Link from 'next/link';
 export default function Home() {
   const router = useRouter();
 
-  // Persistent Auth: If already logged in, redirect automatically to dashboard
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (token) {
@@ -17,12 +16,12 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 flex flex-col relative overflow-hidden font-sans">
-      {/* Soft Ambient Light Glows */}
+      {}
       <div className="ambient-blur w-[600px] h-[600px] bg-indigo-200/50 top-[-200px] left-1/2 -translate-x-1/2" />
       <div className="ambient-blur w-[450px] h-[450px] bg-emerald-200/40 top-[35%] left-[-150px]" />
       <div className="ambient-blur w-[450px] h-[450px] bg-sky-200/40 bottom-[-150px] right-[-150px]" />
 
-      {/* Header Navigation */}
+      {}
       <header className="sticky top-0 z-30 glass-nav px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -51,7 +50,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Section */}
+      {}
       <section className="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center relative z-10 max-w-5xl mx-auto">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold uppercase tracking-wider mb-8 shadow-sm">
           <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
@@ -82,7 +81,7 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* Minimal Feature Cards Grid */}
+        {}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full text-left">
           <div className="glass-card glass-card-hover p-6 rounded-3xl border border-slate-200/90">
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-2xl mb-4 text-indigo-600 shadow-sm">

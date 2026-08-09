@@ -7,10 +7,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from apps.sessions.views import RandomQuestionView
 
-
 def health_check(request):
     return JsonResponse({'status': 'ok', 'service': 'interviewiq-api'})
-
 
 urlpatterns = [
     path('api/health/', health_check, name='health-check'),

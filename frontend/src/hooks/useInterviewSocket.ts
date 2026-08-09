@@ -79,7 +79,7 @@ export function useInterviewSocket(optionsOrSessionId?: string | null | UseInter
       ws.onopen = () => {
         setConnectionStatus('connected');
         reconnectCountRef.current = 0;
-        // Send user_ready message on connection open
+
         ws.send(JSON.stringify({ type: 'user_ready' }));
       };
 
@@ -110,7 +110,7 @@ export function useInterviewSocket(optionsOrSessionId?: string | null | UseInter
 
       ws.onclose = () => {
         setConnectionStatus('disconnected');
-        // Exponential backoff reconnect: 2s, 4s, 8s (up to 3 retries)
+
         if (reconnectCountRef.current < 3) {
           const delay = Math.pow(2, reconnectCountRef.current + 1) * 1000;
           reconnectCountRef.current += 1;
@@ -172,7 +172,6 @@ export function useInterviewSocket(optionsOrSessionId?: string | null | UseInter
     onAlexSpeaks,
     onError,
 
-    // Backward-compatibility aliases
     sendAnswer: sendTranscript,
     sendFacialMetrics: sendFaceReading,
     finishInterview: endSession,

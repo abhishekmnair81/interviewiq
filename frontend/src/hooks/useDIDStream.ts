@@ -24,7 +24,6 @@ export function useDIDStream(): UseDIDStreamReturn {
   const [status, setStatus] = useState<StreamStatus>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  // ── POST helper ────────────────────────────────────────────────────────────
   const api = useCallback(async (path: string, body: object, method = 'POST') => {
     const res = await fetch(`${BACKEND}/api/analysis${path}`, {
       method,
@@ -38,7 +37,6 @@ export function useDIDStream(): UseDIDStreamReturn {
     return res.json();
   }, []);
 
-  // ── Connect & establish WebRTC ─────────────────────────────────────────────
   const connect = useCallback(async () => {
     if (status === 'connecting' || status === 'connected') return;
     if (typeof RTCPeerConnection === 'undefined') {
@@ -51,7 +49,7 @@ export function useDIDStream(): UseDIDStreamReturn {
     setError(null);
 
     try {
-      // 1. Create D-ID stream — backend returns { id, offer, ice_servers, session_id }
+
       const streamData = await api('/avatar/stream/', {});
 
       if (streamData.code === 'NO_API_KEY') {
@@ -63,12 +61,10 @@ export function useDIDStream(): UseDIDStreamReturn {
       streamIdRef.current = streamData.id;
       sessionIdRef.current = streamData.session_id;
 
-      // 2. Create RTCPeerConnection with D-ID's ICE servers
       const iceServers = streamData.ice_servers || [{ urls: 'stun:stun.l.google.com:19302' }];
       const pc = new RTCPeerConnection({ iceServers });
       pcRef.current = pc;
 
-      // 3. Bind incoming video/audio tracks to the video element
       pc.ontrack = (event) => {
         if (videoRef.current && event.streams?.[0]) {
           videoRef.current.srcObject = event.streams[0];
@@ -76,20 +72,16 @@ export function useDIDStream(): UseDIDStreamReturn {
         }
       };
 
-      // 4. Set remote description (D-ID's SDP offer)
       await pc.setRemoteDescription(new RTCSessionDescription(streamData.offer));
 
-      // 5. Create SDP answer
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
-      // 6. Send answer back to D-ID via backend
       await api(`/avatar/stream/${streamIdRef.current}/sdp/`, {
         answer: { type: answer.type, sdp: answer.sdp },
         session_id: sessionIdRef.current,
       });
 
-      // 7. Gather and send ICE candidates
       pc.onicecandidate = async (event) => {
         if (event.candidate && streamIdRef.current && sessionIdRef.current) {
           try {
@@ -103,7 +95,6 @@ export function useDIDStream(): UseDIDStreamReturn {
         }
       };
 
-      // 8. Connection state monitoring
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
         if (state === 'connected') setStatus('connected');
@@ -120,7 +111,6 @@ export function useDIDStream(): UseDIDStreamReturn {
     }
   }, [api, status]);
 
-  // ── Speak text through the live stream ─────────────────────────────────────
   const speak = useCallback(async (text: string) => {
     if (!streamIdRef.current || !sessionIdRef.current) {
       console.warn('D-ID stream not ready — falling back to browser TTS');
@@ -137,10 +127,9 @@ export function useDIDStream(): UseDIDStreamReturn {
     }
   }, [api]);
 
-  // ── Disconnect ─────────────────────────────────────────────────────────────
   const disconnect = useCallback(() => {
     if (streamIdRef.current && sessionIdRef.current) {
-      // Fire-and-forget close request
+
       api(`/avatar/stream/${streamIdRef.current}/close/`, {
         session_id: sessionIdRef.current,
       }, 'DELETE').catch(() => {});
@@ -152,7 +141,6 @@ export function useDIDStream(): UseDIDStreamReturn {
     setStatus('idle');
   }, [api]);
 
-  // ── Cleanup on unmount ─────────────────────────────────────────────────────
   useEffect(() => {
     return () => { disconnect(); };
   }, [disconnect]);

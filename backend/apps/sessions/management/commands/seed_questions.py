@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from apps.sessions.models import Question
 
 QUESTIONS_DATA = [
-    # Behavioral
+
     {"text": "Tell me about a time you had to handle a conflict within your team. How did you resolve it?", "category": "behavioral", "difficulty": "medium"},
     {"text": "Describe a project that failed or did not meet expectations. What did you learn from it?", "category": "behavioral", "difficulty": "hard"},
     {"text": "Give an example of a time when you had to work under a tight deadline and how you prioritized tasks.", "category": "behavioral", "difficulty": "medium"},
@@ -19,7 +19,6 @@ QUESTIONS_DATA = [
     {"text": "Tell me about a time you had to make a decision without all the necessary information.", "category": "behavioral", "difficulty": "hard"},
     {"text": "Describe how you handle stress and pressure during high-stakes situations.", "category": "behavioral", "difficulty": "medium"},
 
-    # HR & General
     {"text": "Tell me about yourself and your professional background.", "category": "hr", "difficulty": "easy"},
     {"text": "Why are you interested in joining our company?", "category": "hr", "difficulty": "easy"},
     {"text": "Where do you see yourself professionally in five years?", "category": "hr", "difficulty": "easy"},
@@ -36,7 +35,6 @@ QUESTIONS_DATA = [
     {"text": "How do you prefer to receive recognition for your contributions?", "category": "hr", "difficulty": "easy"},
     {"text": "If hired, what would your priorities be in the first 90 days?", "category": "hr", "difficulty": "medium"},
 
-    # Technical
     {"text": "Explain the difference between synchronous and asynchronous execution model.", "category": "technical", "difficulty": "medium"},
     {"text": "What is the difference between REST API and GraphQL architecture?", "category": "technical", "difficulty": "medium"},
     {"text": "Explain the concepts of database indexing and how it affects query performance.", "category": "technical", "difficulty": "hard"},
@@ -58,7 +56,6 @@ QUESTIONS_DATA = [
     {"text": "How do you secure web applications against SQL Injection and XSS attacks?", "category": "technical", "difficulty": "hard"},
     {"text": "Explain Server-Side Rendering (SSR) versus Client-Side Rendering (CSR).", "category": "technical", "difficulty": "medium"},
 ]
-
 
 class Command(BaseCommand):
     help = 'Seeds the database with 50 interview questions across HR, Behavioral, and Technical categories.'

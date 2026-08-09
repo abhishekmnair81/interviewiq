@@ -1,7 +1,6 @@
 import uuid
 from django.db import models
 
-
 class AnalysisPipelineLog(models.Model):
 
     class Status(models.TextChoices):

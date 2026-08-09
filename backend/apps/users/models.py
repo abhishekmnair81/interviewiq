@@ -25,10 +25,39 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractUser):
+
+    class ProfessionalField(models.TextChoices):
+        SOFTWARE_ENGINEERING  = 'Software Engineer',         'Software Engineer'
+        DATA_SCIENCE          = 'Data Scientist',            'Data Scientist'
+        PRODUCT_MANAGEMENT    = 'Product Manager',           'Product Manager'
+        CYBERSECURITY         = 'Cybersecurity Analyst',     'Cybersecurity Analyst'
+        DEVOPS                = 'DevOps Engineer',           'DevOps Engineer'
+        AI_ML                 = 'AI/ML Engineer',            'AI/ML Engineer'
+        CIVIL_ENGINEERING     = 'Civil Engineer',            'Civil Engineer'
+        MECHANICAL_ENGINEERING= 'Mechanical Engineer',       'Mechanical Engineer'
+        ELECTRICAL_ENGINEERING= 'Electrical Engineer',       'Electrical Engineer'
+        CHEMICAL_ENGINEERING  = 'Chemical Engineer',         'Chemical Engineer'
+        ELECTRONICS           = 'Electronics Engineer',      'Electronics Engineer'
+        BIOMEDICAL            = 'Biomedical Engineer',       'Biomedical Engineer'
+        FINANCE               = 'Finance & Accounting',      'Finance & Accounting'
+        MARKETING             = 'Marketing & Sales',         'Marketing & Sales'
+        HUMAN_RESOURCES       = 'Human Resources',           'Human Resources'
+        HEALTHCARE            = 'Healthcare / Medicine',     'Healthcare / Medicine'
+        LAW                   = 'Law / Legal',               'Law / Legal'
+        EDUCATION             = 'Education / Teaching',      'Education / Teaching'
+        ARCHITECTURE          = 'Architecture & Design',     'Architecture & Design'
+        BUSINESS              = 'Business Management',       'Business Management'
+
     username = None
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255, blank=True)
+    professional_field = models.CharField(
+        max_length=60,
+        choices=ProfessionalField.choices,
+        default=ProfessionalField.SOFTWARE_ENGINEERING,
+        db_index=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

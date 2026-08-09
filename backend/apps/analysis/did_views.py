@@ -20,7 +20,6 @@ from apps.analysis.did_service import (
 
 logger = logging.getLogger(__name__)
 
-
 @method_decorator(csrf_exempt, name='dispatch')
 class DIDStreamView(View):
     """Create a new D-ID WebRTC streaming session."""
@@ -30,12 +29,11 @@ class DIDStreamView(View):
             data = create_streaming_session()
             return JsonResponse(data, status=201)
         except ValueError as e:
-            # API key not configured
+
             return JsonResponse({'error': str(e), 'code': 'NO_API_KEY'}, status=400)
         except Exception as e:
             logger.error(f"D-ID stream create error: {e}")
             return JsonResponse({'error': str(e)}, status=500)
-
 
 @method_decorator(csrf_exempt, name='dispatch')
 class DIDSdpView(View):
@@ -54,7 +52,6 @@ class DIDSdpView(View):
             logger.error(f"D-ID SDP error: {e}")
             return JsonResponse({'error': str(e)}, status=500)
 
-
 @method_decorator(csrf_exempt, name='dispatch')
 class DIDIceView(View):
     """Send ICE candidate to D-ID."""
@@ -71,7 +68,6 @@ class DIDIceView(View):
         except Exception as e:
             logger.error(f"D-ID ICE error: {e}")
             return JsonResponse({'error': str(e)}, status=500)
-
 
 @method_decorator(csrf_exempt, name='dispatch')
 class DIDSpeakView(View):
@@ -90,7 +86,6 @@ class DIDSpeakView(View):
         except Exception as e:
             logger.error(f"D-ID speak error: {e}")
             return JsonResponse({'error': str(e)}, status=500)
-
 
 @method_decorator(csrf_exempt, name='dispatch')
 class DIDCloseView(View):

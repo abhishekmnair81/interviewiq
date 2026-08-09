@@ -17,14 +17,12 @@ export default function LiveInterviewPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
-  // Setup form state
   const [candidateName, setCandidateName] = useState('Candidate');
   const [jobRole, setJobRole] = useState('Software Engineer');
   const [category, setCategory] = useState('behavioral');
   const [difficulty, setDifficulty] = useState('medium');
   const [setupStep, setSetupStep] = useState(1);
 
-  // Session & Flow state
   const [appState, setAppState] = useState<AppState>('SETUP');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [alexText, setAlexText] = useState<string>('');
@@ -33,25 +31,22 @@ export default function LiveInterviewPage() {
   const [durationSec, setDurationSec] = useState(0);
   const [isReportReady, setIsReportReady] = useState(false);
 
-  // Live STT state
   const [interimTranscript, setInterimTranscript] = useState('');
   const [finalTranscript, setFinalTranscript] = useState('');
   const [sttError, setSttError] = useState<string | null>(null);
 
-  // Mic test level state for setup
   const [micLevel, setMicLevel] = useState(0);
   const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  // Keep video stream alive across React state transitions
+
   const streamRef = useRef<MediaStream | null>(null);
-  // Separate short-lived audio stream for mic level meter (released before interview)
+
   const micStreamRef = useRef<MediaStream | null>(null);
-  // Prevent double-submission
+
   const waitingForUserRef = useRef(false);
-  // Typed fallback answer ref (always has current value even inside closures)
+
   const typedAnswerRef = useRef('');
 
-  // Custom Hooks
   const { isSpeaking, isListening, speak, cancelSpeech, startListening, stopListening, checkSupport } = useSpeechInterviewer();
   const { eyeContactScore, stabilityScore, currentEmotion } = useFaceTracking(videoRef);
   const { isConnected, connect, sendTranscript, sendFaceReading, endSession, latestMessage } = useInterviewSocket();
@@ -60,7 +55,6 @@ export default function LiveInterviewPage() {
     setMounted(true);
   }, []);
 
-  // Duration timer
   useEffect(() => {
     if (appState === 'SETUP' || appState === 'CONNECTING') return;
     const timer = setInterval(() => {
@@ -69,14 +63,10 @@ export default function LiveInterviewPage() {
     return () => clearInterval(timer);
   }, [appState]);
 
-  // Camera — VIDEO ONLY. Audio is handled separately to avoid locking the mic
-  // for SpeechRecognition. Chrome exclusively locks the mic for the first
-  // getUserMedia caller, which prevents Web Speech API from ever capturing audio.
   useEffect(() => {
     if (!mounted) return;
     let active = true;
 
-    // 1. Video-only stream for camera preview
     navigator.mediaDevices
       .getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false })
       .then((s) => {
@@ -90,7 +80,6 @@ export default function LiveInterviewPage() {
       })
       .catch(() => { if (active) setCameraActive(false); });
 
-    // 2. Separate audio-only stream JUST for the mic level meter
     let audioCtx: AudioContext | null = null;
     let analyser: AnalyserNode | null = null;
     let animFrame: number | null = null;
@@ -116,18 +105,18 @@ export default function LiveInterviewPage() {
         };
         updateMeter();
       })
-      .catch(() => {}); // mic meter is non-critical
+      .catch(() => {});
 
     return () => {
       active = false;
       if (animFrame) cancelAnimationFrame(animFrame);
       if (audioCtx) audioCtx.close();
-      // Stop mic meter stream
+
       if (micStreamRef.current) {
         micStreamRef.current.getTracks().forEach((t) => t.stop());
         micStreamRef.current = null;
       }
-      // Stop camera stream on full page unmount
+
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
@@ -135,8 +124,6 @@ export default function LiveInterviewPage() {
     };
   }, [mounted]);
 
-  // Re-attach stream to video element whenever it mounts into the DOM
-  // (the <video> tag re-mounts when appState changes between SETUP and interview)
   const attachStream = useCallback((el: HTMLVideoElement | null) => {
     videoRef.current = el;
     if (el && streamRef.current) {
@@ -145,11 +132,9 @@ export default function LiveInterviewPage() {
     }
   }, []);
 
-  // Real-Time STAR Method Analyzer
   const activeAnswerText = interimTranscript || finalTranscript || typedAnswerRef.current || '';
   const starAnalysis = useStarAnalyzer(activeAnswerText);
 
-  // Periodic Face Reading transmission via WebSocket
   useEffect(() => {
     if (appState === 'SETUP' || appState === 'CONNECTING' || !isConnected) return;
     const timer = setInterval(() => {
@@ -164,10 +149,8 @@ export default function LiveInterviewPage() {
     return () => clearInterval(timer);
   }, [appState, isConnected, eyeContactScore, stabilityScore, currentEmotion, sendFaceReading]);
 
-  // Ref to store submit callback to prevent stale closure in auto-silence STT handlers
   const submitAnswerRef = useRef<((textToSubmit?: string) => void) | null>(null);
 
-  // handleUserSubmitAnswer reads typedAnswerRef.current first (always fresh)
   const handleUserSubmitAnswer = useCallback(
     (textToSubmit?: string) => {
       const answer = (textToSubmit || typedAnswerRef.current || finalTranscript || interimTranscript).trim();
@@ -187,7 +170,6 @@ export default function LiveInterviewPage() {
 
       sendTranscript(answer);
 
-      // Clear all input
       typedAnswerRef.current = '';
       setInterimTranscript('');
       setFinalTranscript('');
@@ -199,11 +181,10 @@ export default function LiveInterviewPage() {
     submitAnswerRef.current = handleUserSubmitAnswer;
   }, [handleUserSubmitAnswer]);
 
-
   const handleAlexSpeechResponse = useCallback(
     (text: string, isComplete: boolean) => {
       setAlexText(text);
-      waitingForUserRef.current = false; // Alex just received the turn
+      waitingForUserRef.current = false;
 
       if (isComplete) {
         speak(text, () => {
@@ -212,11 +193,11 @@ export default function LiveInterviewPage() {
       } else {
         setAppState('ALEX_SPEAKING');
         speak(text, () => {
-          // Alex finished speaking — now it's the user's turn
+
           setAppState('USER_TURN');
           setInterimTranscript('');
           setFinalTranscript('');
-          waitingForUserRef.current = true; // waiting for user to actually speak
+          waitingForUserRef.current = true;
 
           startListening(
             (liveText) => {
@@ -232,7 +213,7 @@ export default function LiveInterviewPage() {
                 setSttError("I didn't catch that clearly. Please speak or type your answer!");
               }
             },
-            3500 // 3.5s silence window for natural human turn pacing
+            3500
           );
         });
       }
@@ -240,11 +221,9 @@ export default function LiveInterviewPage() {
     [speak, startListening]
   );
 
-  // Start Session handler
   const handleStartInterview = async () => {
     if (!checkSupport()) return;
 
-    // Release mic-meter audio stream before starting interview session
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach((t) => t.stop());
       micStreamRef.current = null;
@@ -274,7 +253,6 @@ export default function LiveInterviewPage() {
     }
   };
 
-  // Socket listener for alex_speaking events
   useEffect(() => {
     if (!latestMessage) return;
     if (latestMessage.type === 'alex_speaking' && latestMessage.text) {
@@ -284,7 +262,6 @@ export default function LiveInterviewPage() {
     }
   }, [latestMessage, handleAlexSpeechResponse]);
 
-  // Polling for report status on COMPLETE screen
   useEffect(() => {
     if (appState !== 'COMPLETE' || !sessionId) return;
     const interval = setInterval(async () => {
@@ -299,13 +276,11 @@ export default function LiveInterviewPage() {
     return () => clearInterval(interval);
   }, [appState, sessionId]);
 
-  // Replay Alex speech manually
   const handleReplayAlex = () => {
     if (!alexText || isSpeaking) return;
     speak(alexText);
   };
 
-  // Toggle user mic listening manually
   const handleToggleSpeak = () => {
     setSttError(null);
     if (isListening) {
@@ -332,9 +307,8 @@ export default function LiveInterviewPage() {
     }
   };
 
-  // Derive Avatar State
   const avatarState: AvatarState =
-    appState === 'ALEX_SPEAKING'
+    (appState === 'ALEX_SPEAKING' || isSpeaking)
       ? 'speaking'
       : appState === 'PROCESSING'
       ? 'thinking'
@@ -352,10 +326,10 @@ export default function LiveInterviewPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col relative overflow-hidden">
-      {/* Background Glows */}
+      {}
       <div className="ambient-blur w-[600px] h-[600px] bg-indigo-200/40 top-[-200px] left-1/2 -translate-x-1/2" />
 
-      {/* Header Bar */}
+      {}
       <header className="glass-nav px-6 py-4 border-b border-slate-200/80 flex items-center justify-between z-30">
         <Link href="/dashboard" className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-600/20">
@@ -395,7 +369,7 @@ export default function LiveInterviewPage() {
         )}
       </header>
 
-      {/* ── STATE 1: SETUP SCREEN ────────────────────────────────────────── */}
+      {}
       {appState === 'SETUP' && (
         <main className="flex-1 flex items-center justify-center p-6 relative z-10 max-w-3xl mx-auto w-full">
           <div className="glass-card p-8 rounded-3xl border border-slate-200/90 shadow-xl w-full space-y-6">
@@ -427,7 +401,7 @@ export default function LiveInterviewPage() {
               </div>
             </div>
 
-            {/* STEP 1: Name & Role */}
+            {}
             {setupStep === 1 && (
               <div className="space-y-4">
                 <div>
@@ -463,7 +437,7 @@ export default function LiveInterviewPage() {
               </div>
             )}
 
-            {/* STEP 2: Category & Difficulty */}
+            {}
             {setupStep === 2 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -499,7 +473,7 @@ export default function LiveInterviewPage() {
               </div>
             )}
 
-            {/* STEP 3: Camera & Mic Test */}
+            {}
             {setupStep === 3 && (
               <div className="space-y-4">
                 <div className="relative h-56 rounded-2xl bg-slate-900 border border-slate-200 overflow-hidden flex items-center justify-center">
@@ -536,7 +510,7 @@ export default function LiveInterviewPage() {
               </div>
             )}
 
-            {/* STEP 4: Brief Instructions */}
+            {}
             {setupStep === 4 && (
               <div className="bg-indigo-50/70 border border-indigo-200 p-5 rounded-2xl space-y-3">
                 <div className="flex items-center gap-3">
@@ -554,7 +528,7 @@ export default function LiveInterviewPage() {
               </div>
             )}
 
-            {/* Setup Controls */}
+            {}
             <div className="flex justify-between items-center pt-4 border-t border-slate-200">
               {setupStep > 1 ? (
                 <button
@@ -587,7 +561,7 @@ export default function LiveInterviewPage() {
         </main>
       )}
 
-      {/* ── STATE 2: CONNECTING SCREEN ───────────────────────────────────── */}
+      {}
       {appState === 'CONNECTING' && (
         <main className="flex-1 flex flex-col items-center justify-center p-6 text-center z-10">
           <div className="w-20 h-20 rounded-full border-4 border-t-indigo-600 border-r-emerald-500 border-b-transparent border-l-transparent animate-spin mb-6 shadow-xl" />
@@ -598,11 +572,11 @@ export default function LiveInterviewPage() {
         </main>
       )}
 
-      {/* ── STATE 3, 4, 5: MAIN INTERVIEW SPLIT SCREEN ────────────────────── */}
+      {}
       {(appState === 'ALEX_SPEAKING' || appState === 'USER_TURN' || appState === 'PROCESSING') && (
         <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden min-h-0 relative z-10">
-          
-          {/* LEFT SIDE: ALEX PANEL */}
+
+          {}
           <div
             className={`glass-card rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden shadow-xl transition-all duration-500 border ${
               avatarState === 'speaking'
@@ -610,16 +584,36 @@ export default function LiveInterviewPage() {
                 : 'border-slate-200/90'
             }`}
           >
-            {/* Interactive 3D Real-time AI Character Avatar */}
-            <div className="flex-1 my-1 z-10 min-h-[350px]">
-              <Alex3DRealCharacter state={avatarState} candidateName={candidateName} jobRole={jobRole} />
+            <div className="flex justify-between items-center z-10">
+              <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-800 flex items-center gap-2 shadow-sm">
+                <span className={`w-2.5 h-2.5 rounded-full ${avatarState === 'speaking' ? 'bg-emerald-500 animate-pulse' : 'bg-indigo-500'}`} />
+                <span>Alex (AI Interviewer)</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 uppercase tracking-wider ${
+                  avatarState === 'speaking'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : avatarState === 'listening'
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    : avatarState === 'thinking'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                }`}>
+                  <span>{avatarState === 'speaking' ? '🎙 Speaking' : avatarState === 'listening' ? '👂 Listening' : avatarState === 'thinking' ? '🧠 Thinking' : 'Ready'}</span>
+                </div>
+                <div className="bg-white border border-slate-200 px-3 py-1 rounded-full text-xs font-bold text-indigo-700 shadow-sm">
+                  {jobRole}
+                </div>
+              </div>
             </div>
 
+            <div className="relative flex-1 my-4 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 min-h-[260px] flex items-center justify-center">
+              <Alex3DRealCharacter state={avatarState} alexText={alexText} candidateName={candidateName} jobRole={jobRole} />
+            </div>
 
-
-            {/* Speech Bubble Box */}
-            <div className="bg-white/95 backdrop-blur-md p-5 rounded-2xl border border-slate-200/90 shadow-sm z-10">
-              <div className="flex items-center justify-between mb-1.5">
+            <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-sm z-10">
+              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 mb-2">
                 <span className="text-indigo-600 font-extrabold text-[11px] uppercase tracking-wider">
                   Alex Response
                 </span>
@@ -641,22 +635,22 @@ export default function LiveInterviewPage() {
                   )}
                 </div>
               </div>
-              <p className="font-semibold text-slate-900 leading-relaxed text-xs sm:text-sm max-h-36 overflow-y-auto">
+              <p className="font-semibold text-slate-900 leading-relaxed text-xs sm:text-sm max-h-24 overflow-y-auto">
                 &quot;{alexText || 'Alex is ready...'}&quot;
               </p>
             </div>
           </div>
 
-          {/* RIGHT SIDE: USER PANEL */}
+          {}
           <div className="glass-card rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden shadow-xl border border-slate-200/90">
-            {/* Header User Tag & Indicators */}
+            {}
             <div className="flex justify-between items-center z-10">
               <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-800 flex items-center gap-2 shadow-sm">
                 <span className={`w-2.5 h-2.5 rounded-full ${cameraActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
                 <span>You ({candidateName})</span>
               </div>
 
-              {/* Eye Contact & Stability Badges */}
+              {}
               <div className="flex items-center gap-2">
                 <div
                   className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
@@ -673,7 +667,7 @@ export default function LiveInterviewPage() {
               </div>
             </div>
 
-            {/* Live Camera Video Feed */}
+            {}
             <div className="relative flex-1 my-4 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 min-h-[260px] flex items-center justify-center">
               <video
                 ref={attachStream}
@@ -691,58 +685,8 @@ export default function LiveInterviewPage() {
               )}
             </div>
 
-            {/* Live Conversation Transcript Area */}
+            {}
             <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3 z-10">
-              {/* STAR Framework Real-Time HUD */}
-              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-3.5 rounded-2xl border border-indigo-500/30 text-white shadow-lg space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs">⭐</span>
-                    <span className="text-[11px] font-black tracking-wider uppercase text-indigo-300">
-                      STAR Structure HUD
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-slate-300">Score:</span>
-                    <span className="text-xs font-black text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/40">
-                      {starAnalysis.score}%
-                    </span>
-                  </div>
-                </div>
-
-                {/* STAR Badges */}
-                <div className="grid grid-cols-4 gap-1.5 pt-0.5">
-                  {[
-                    { code: 'S', label: 'Situation', active: starAnalysis.hasSituation, color: 'bg-emerald-500' },
-                    { code: 'T', label: 'Task', active: starAnalysis.hasTask, color: 'bg-indigo-500' },
-                    { code: 'A', label: 'Action', active: starAnalysis.hasAction, color: 'bg-purple-500' },
-                    { code: 'R', label: 'Result', active: starAnalysis.hasResult, color: 'bg-amber-400' },
-                  ].map((phase) => (
-                    <div
-                      key={phase.code}
-                      className={`px-2 py-1 rounded-xl text-center border transition-all duration-300 ${
-                        phase.active
-                          ? `${phase.color} text-slate-950 border-white/60 font-black shadow-md scale-102`
-                          : 'bg-slate-800/80 text-slate-400 border-slate-700 font-semibold'
-                      }`}
-                    >
-                      <div className="text-[11px] leading-none">{phase.code}</div>
-                      <div className="text-[9px] truncate opacity-90">{phase.label}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Real-Time Guidance Tip */}
-                <div className="text-[11px] font-semibold text-slate-200 bg-white/10 backdrop-blur-sm px-2.5 py-1.5 rounded-xl flex items-center justify-between gap-2 border border-white/10">
-                  <span className="truncate">💡 {starAnalysis.coachingTip}</span>
-                  {starAnalysis.missingPhase && (
-                    <span className="text-[9px] font-extrabold uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full whitespace-nowrap">
-                      Missing: {starAnalysis.missingPhase}
-                    </span>
-                  )}
-                </div>
-              </div>
-
               <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700">
                   Your Answer
@@ -758,7 +702,7 @@ export default function LiveInterviewPage() {
                 </span>
               </div>
 
-              {/* Editable textarea — users can speak OR type their answer */}
+              {}
               <textarea
                 id="answer-textarea"
                 rows={3}
@@ -789,7 +733,7 @@ export default function LiveInterviewPage() {
                 </div>
               )}
 
-              {/* Speech Controls */}
+              {}
               <div className="flex items-center gap-3 pt-1">
                 <button
                   id="speak-now-btn"
@@ -826,7 +770,7 @@ export default function LiveInterviewPage() {
         </main>
       )}
 
-      {/* ── STATE 6: INTERVIEW COMPLETE OVERLAY ─────────────────────────── */}
+      {}
       {appState === 'COMPLETE' && (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center z-50">
           <div className="max-w-lg w-full glass-card p-8 rounded-3xl border border-slate-200/90 shadow-2xl bg-white space-y-6">
@@ -843,7 +787,7 @@ export default function LiveInterviewPage() {
               </p>
             </div>
 
-            {/* Quick Stats Grid */}
+            {}
             <div className="grid grid-cols-2 gap-3 text-left">
               <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl">
                 <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
@@ -879,7 +823,7 @@ export default function LiveInterviewPage() {
               </div>
             </div>
 
-            {/* View Full Report Button */}
+            {}
             {isReportReady ? (
               <Link
                 href={`/report/${sessionId}`}

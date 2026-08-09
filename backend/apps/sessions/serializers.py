@@ -3,8 +3,7 @@ from rest_framework import serializers
 from .models import InterviewSession, Question
 
 ALLOWED_VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi']
-MAX_VIDEO_SIZE_BYTES = 100 * 1024 * 1024  # 100MB
-
+MAX_VIDEO_SIZE_BYTES = 100 * 1024 * 1024  
 
 class QuestionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -12,10 +11,9 @@ class QuestionSerializer(serializers.ModelSerializer):
         fields = ('id', 'text', 'category', 'difficulty', 'created_at')
         read_only_fields = ('id', 'created_at')
 
-
 class InterviewSessionCreateSerializer(serializers.ModelSerializer):
     question_id = serializers.UUIDField(required=False, write_only=True)
-    # Allow blank/missing question — create() will auto-pick from the question bank
+
     question = serializers.CharField(required=False, allow_blank=True, default='')
 
     class Meta:
@@ -36,11 +34,11 @@ class InterviewSessionCreateSerializer(serializers.ModelSerializer):
                 if not validated_data.get('question_category'):
                     validated_data['question_category'] = q_obj.category
             except Question.DoesNotExist:
-                # question_id not in DB (e.g. fallback UUID) — use question text as-is
+
                 pass
 
         if not validated_data.get('question'):
-            # Auto pick random question if none provided
+
             q_obj = Question.objects.order_by('?').first()
             if q_obj:
                 validated_data['question_ref'] = q_obj
@@ -58,7 +56,6 @@ class InterviewSessionCreateSerializer(serializers.ModelSerializer):
         validated_data['user'] = user
         return super().create(validated_data)
 
-
 class InterviewSessionSerializer(serializers.ModelSerializer):
     question_detail = QuestionSerializer(source='question_ref', read_only=True)
 
@@ -69,7 +66,6 @@ class InterviewSessionSerializer(serializers.ModelSerializer):
             'video_url', 'status', 'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'user', 'status', 'created_at', 'updated_at')
-
 
 class SessionVideoUploadSerializer(serializers.Serializer):
     video = serializers.FileField(required=True)
@@ -85,7 +81,6 @@ class SessionVideoUploadSerializer(serializers.Serializer):
             raise serializers.ValidationError("File size exceeds maximum limit of 100MB.")
 
         return value
-
 
 class SessionStatusSerializer(serializers.ModelSerializer):
     class Meta:

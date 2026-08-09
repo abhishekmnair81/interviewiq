@@ -206,10 +206,10 @@ export default function ReportPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans relative overflow-hidden">
-      {/* Background Soft Glows */}
+      {}
       <div className="ambient-blur w-[600px] h-[600px] bg-indigo-200/40 top-[-200px] left-1/2 -translate-x-1/2" />
 
-      {/* Header Navigation */}
+      {}
       <header className="sticky top-0 z-30 glass-nav px-6 py-4 border-b border-slate-200/80">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <Link href="/dashboard" className="flex items-center gap-3">
@@ -240,9 +240,9 @@ export default function ReportPage() {
         </div>
       </header>
 
-      {/* Main Report Body */}
+      {}
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 relative z-10">
-        {/* Banner Header */}
+        {}
         <div className="glass-card p-8 rounded-3xl border border-slate-200/90 shadow-sm">
           <div className="flex flex-col md:flex-row justify-between gap-6">
             <div className="flex-1">
@@ -273,7 +273,7 @@ export default function ReportPage() {
           </div>
         </div>
 
-        {/* Score Breakdown Rings & Radar */}
+        {}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="glass-card p-6 rounded-3xl border border-slate-200/90 shadow-sm">
             <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-6">Multimodal Pillar Scores</h2>
@@ -334,7 +334,7 @@ export default function ReportPage() {
           </div>
         </div>
 
-        {/* ACOUSTIC VOICE & HEARING ANALYTICS PANEL */}
+        {}
         <div className="glass-card p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200/70 pb-3">
             <div>
@@ -399,7 +399,7 @@ export default function ReportPage() {
           )}
         </div>
 
-        {/* STAR METHOD & EXECUTIVE CONTENT ANALYSIS */}
+        {}
         <div className="glass-card p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200/70 pb-3">
             <div>
@@ -452,7 +452,7 @@ export default function ReportPage() {
           )}
         </div>
 
-        {/* MULTI-MODAL CROSS-CONTRADICTION ALERTS */}
+        {}
         {report.contradictions && report.contradictions.length > 0 && (
           <div className="glass-card p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
             <h2 className="text-xs font-extrabold uppercase tracking-wider text-rose-700 flex items-center gap-2">
@@ -485,7 +485,7 @@ export default function ReportPage() {
           </div>
         )}
 
-        {/* Actionable Improvement Tips */}
+        {}
         <div className="glass-card p-6 rounded-3xl border border-slate-200/90 shadow-sm">
           <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-4">
             Actionable AI Recommendations & Coaching Steps
@@ -502,7 +502,7 @@ export default function ReportPage() {
           </div>
         </div>
 
-        {/* Highlighted Transcript */}
+        {}
         <div className="glass-card p-6 rounded-3xl border border-slate-200/90 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">

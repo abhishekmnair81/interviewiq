@@ -20,7 +20,7 @@ class GroqInterviewer:
             'GROQ_API_KEY', 
             os.getenv('GROQ_API_KEY', '')
         )
-        
+
         self.system_prompt = (
             f"You are a professional, experienced interviewer conducting a real job interview for the role of {self.job_role}.\n"
             f"Your personality: professional, calm, encouraging but objective. You speak naturally like a human interviewer.\n"
@@ -181,6 +181,4 @@ class GroqInterviewer:
             "improvement_tips": ["Add more quantifiable metrics to achievements", "Maintain direct eye contact throughout"]
         }
 
-
-# Maintain backward compatibility alias
 GeminiInterviewer = GroqInterviewer

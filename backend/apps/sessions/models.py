@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
-
+from django.contrib.auth import get_user_model
 
 class Question(models.Model):
     class Category(models.TextChoices):
@@ -37,7 +37,6 @@ class Question(models.Model):
     def __str__(self):
         return f'[{self.category.upper()}] {self.text[:50]}'
 
-
 class InterviewSession(models.Model):
 
     class Status(models.TextChoices):
@@ -71,7 +70,7 @@ class InterviewSession(models.Model):
         default=QuestionCategory.BEHAVIORAL
     )
     video_url = models.URLField(blank=True, null=True)
-    video_local_path = models.TextField(blank=True, null=True)  # Physical disk path for Whisper analysis
+    video_local_path = models.TextField(blank=True, null=True)  
     class InterviewMode(models.TextChoices):
         RECORDED = 'recorded', 'Recorded'
         LIVE = 'live', 'Live'
@@ -103,3 +102,78 @@ class InterviewSession(models.Model):
 
     def __str__(self):
         return f'Session {self.id} [{self.status}] — {self.user.email}'
+
+class QuestionBank(models.Model):
+    """
+    Curated pool of interview questions keyed by job role, category, and difficulty.
+    The SmartQuestionSelector draws from here and guarantees unique delivery per user.
+    """
+
+    class Category(models.TextChoices):
+        HR = 'hr', 'HR'
+        BEHAVIORAL = 'behavioral', 'Behavioral'
+        TECHNICAL = 'technical', 'Technical'
+
+    class Difficulty(models.TextChoices):
+        EASY = 'easy', 'Easy'
+        MEDIUM = 'medium', 'Medium'
+        HARD = 'hard', 'Hard'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job_role = models.CharField(max_length=100, db_index=True)
+    category = models.CharField(max_length=20, choices=Category.choices, db_index=True)
+    difficulty = models.CharField(max_length=20, choices=Difficulty.choices, db_index=True)
+    text = models.TextField(help_text='Full question text shown to (used by) the AI interviewer as a topic anchor.')
+    topic_tag = models.CharField(max_length=80, blank=True, help_text='Short tag, e.g. "system-design", "leadership"')
+    is_active = models.BooleanField(default=True, db_index=True)
+    times_served = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'question_bank'
+        verbose_name = 'Question Bank Entry'
+        verbose_name_plural = 'Question Bank Entries'
+        ordering = ['job_role', 'category', 'difficulty']
+
+    def __str__(self):
+        return f'[{self.category.upper()} | {self.difficulty} | {self.job_role}] {self.text[:60]}'
+
+class UserQuestionHistory(models.Model):
+    """
+    Tracks which QuestionBank entries have been served to each user per
+    (job_role, category, difficulty) combination.  When the full pool is
+    exhausted for a user the selector resets automatically so practice can
+    continue with a fresh rotation.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='question_history'
+    )
+    question_bank = models.ForeignKey(
+        QuestionBank,
+        on_delete=models.CASCADE,
+        related_name='served_records'
+    )
+    job_role = models.CharField(max_length=100)
+    category = models.CharField(max_length=20)
+    difficulty = models.CharField(max_length=20)
+    session = models.ForeignKey(
+        InterviewSession,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='question_tracking'
+    )
+    served_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'user_question_history'
+        verbose_name = 'User Question History'
+        verbose_name_plural = 'User Question Histories'
+        ordering = ['-served_at']
+        unique_together = [('user', 'question_bank')]
+
+    def __str__(self):
+        return f'{self.user} ← {self.question_bank.text[:40]} ({self.served_at.date()})'

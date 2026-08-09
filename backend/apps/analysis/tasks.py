@@ -3,12 +3,10 @@ from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
-
 @shared_task(name='apps.analysis.tasks.add_numbers')
 def add_numbers(x: int, y: int) -> int:
     logger.info(f"Executing add_numbers task: {x} + {y}")
     return x + y
-
 
 @shared_task(
     bind=True,
@@ -39,7 +37,6 @@ def analyze_session(self, session_id: str) -> str:
 
         is_live = getattr(session, 'interview_mode', 'recorded') == 'live'
 
-        # Extract question context & transcript
         if is_live and session.conversation_history:
             candidate_msgs = [m['text'] for m in session.conversation_history if m.get('sender') in ('candidate', 'user') and m.get('text')]
             interviewer_msgs = [m['text'] for m in session.conversation_history if m.get('sender') == 'interviewer' and m.get('text')]
@@ -49,7 +46,6 @@ def analyze_session(self, session_id: str) -> str:
             full_transcript = ""
             question_context = session.question
 
-        # ── 1. Speech Pipeline ───────────────────────────────────────────────
         speech_log, _ = AnalysisPipelineLog.objects.get_or_create(
             session=session, pipeline_name='speech'
         )
@@ -60,12 +56,11 @@ def analyze_session(self, session_id: str) -> str:
                 import re
                 words = re.findall(r'\b\w+\b', full_transcript.lower())
                 total_words = len(words)
-                
-                # Single filler sounds & phrases using word boundaries
+
                 detected_fillers = [w for w in words if w in {'um', 'uh', 'err', 'ah', 'hmm', 'hmmm'}]
                 for pattern in [r'\byou know\b', r'\bsort of\b', r'\bkind of\b', r'\bto be honest\b', r'\bi mean\b']:
                     detected_fillers.extend(re.findall(pattern, full_transcript.lower()))
-                
+
                 filler_count = len(detected_fillers)
                 wpm = round(min(170.0, max(120.0, total_words / max(1.0, len(candidate_msgs) * 0.4))), 1) if candidate_msgs else 145.0
                 speech_score = round(max(60.0, min(98.0, 92.0 - (filler_count * 2.5))), 1)
@@ -92,7 +87,6 @@ def analyze_session(self, session_id: str) -> str:
         speech_log.completed_at = timezone.now()
         speech_log.save(update_fields=['status', 'completed_at', 'error_message'])
 
-        # ── 2. Facial Pipeline ───────────────────────────────────────────────
         facial_log, _ = AnalysisPipelineLog.objects.get_or_create(
             session=session, pipeline_name='facial'
         )
@@ -130,7 +124,6 @@ def analyze_session(self, session_id: str) -> str:
         facial_log.completed_at = timezone.now()
         facial_log.save(update_fields=['status', 'completed_at', 'error_message'])
 
-        # ── 3. Answer Quality Pipeline ───────────────────────────────────────
         answer_log, _ = AnalysisPipelineLog.objects.get_or_create(
             session=session, pipeline_name='answer'
         )
@@ -142,7 +135,6 @@ def analyze_session(self, session_id: str) -> str:
                 transcript=speech_res.get('transcript', ''),
             )
 
-            # Deep Groq LLM feedback for interactive conversations
             llm_tips = []
             if is_live and session.conversation_history:
                 try:
@@ -180,7 +172,6 @@ def analyze_session(self, session_id: str) -> str:
         answer_log.completed_at = timezone.now()
         answer_log.save(update_fields=['status', 'completed_at', 'error_message'])
 
-        # ── 4. Cross-Modal Contradiction Engine ──────────────────────────────
         contradictions = detect_contradictions(
             speech_score=speech_res['speech_score'],
             face_score=facial_res['face_score'],
@@ -195,7 +186,6 @@ def analyze_session(self, session_id: str) -> str:
         if contradictions:
             logger.info(f'[{session_id}] {len(contradictions)} contradiction(s) detected.')
 
-        # ── 5. Final Report ──────────────────────────────────────────────────
         report_data = generate_report(
             speech_res=speech_res,
             facial_res=facial_res,

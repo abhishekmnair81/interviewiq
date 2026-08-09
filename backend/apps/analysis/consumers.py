@@ -11,7 +11,6 @@ from apps.analysis.groq_service import AlexInterviewer
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
-
 class InterviewConsumer(AsyncJsonWebsocketConsumer):
     """
     WebSocket consumer for Alex — Live Conversational AI Interviewer using Groq.
@@ -39,22 +38,33 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4001)
             return
 
-        job_role = getattr(self.session, 'job_role', 'Software Engineer') or 'Software Engineer'
+        user_field = getattr(self.user, 'professional_field', 'Software Engineer') or 'Software Engineer'
+        job_role = getattr(self.session, 'job_role', None) or user_field
         category = getattr(self.session, 'question_category', 'behavioral') or 'behavioral'
         difficulty = getattr(self.session, 'difficulty', 'medium') or 'medium'
 
-        # Initialize Alex Interviewer instance
         self.interviewer = AlexInterviewer(
             job_role=job_role,
             category=category,
-            difficulty=difficulty
+            difficulty=difficulty,
+            user=self.user,
+            session=self.session,
         )
 
-        # Restore existing conversation history if reconnecting
         if self.session.conversation_history:
             self.interviewer.conversation_history = self.session.conversation_history
             assistant_turns = [m for m in self.session.conversation_history if m.get('role') == 'assistant']
             self.interviewer.exchange_count = len(assistant_turns)
+
+            total_q = len(self.interviewer.selected_questions)
+            restored_idx = max(0, len(assistant_turns) - 1)  
+            self.interviewer.current_question_index = min(restored_idx, total_q)
+            logger.info(
+                "Session restored: exchange_count=%d, agenda_idx=%d/%d",
+                self.interviewer.exchange_count,
+                self.interviewer.current_question_index,
+                total_q,
+            )
 
     @database_sync_to_async
     def authenticate_user(self, token_str):
@@ -118,7 +128,6 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
     async def receive_json(self, content):
         msg_type = content.get('type') or content.get('action')
 
-        # ── 1. USER READY (Session Opening) ──────────────────────────────────
         if msg_type in ['user_ready', 'start']:
             opening_text = await database_sync_to_async(self.interviewer.get_opening)()
             await self.save_session_state()
@@ -130,7 +139,6 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
                 'exchange_count': 0
             })
 
-        # ── 2. USER SPOKE (Main Conversation Turn) ─────────────────────────
         elif msg_type in ['user_spoke', 'answer']:
             transcript = (content.get('transcript') or content.get('data', {}).get('transcript') or '').strip()
 
@@ -154,12 +162,10 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
             if res['is_complete']:
                 await self.trigger_session_analysis()
 
-        # ── 3. FACE READING METRICS ──────────────────────────────────────────
         elif msg_type in ['face_reading', 'facial_metrics']:
             face_data = content.get('data') or content.get('metrics') or content
             await self.append_face_reading(face_data)
 
-        # ── 4. END SESSION EARLY ─────────────────────────────────────────────
         elif msg_type in ['end_session', 'finish']:
             self.interviewer.is_complete = True
             await self.save_session_state()

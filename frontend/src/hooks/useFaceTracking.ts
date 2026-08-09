@@ -17,7 +17,6 @@ export function useFaceTracking(videoRef: React.RefObject<HTMLVideoElement | nul
   const animFrameRef = useRef<number | null>(null);
   const isProcessingRef = useRef(false);
 
-  // Keep latest metrics in ref for interval recording without triggering effect re-runs
   const currentMetricsRef = useRef({ eyeContactScore: 85, stabilityScore: 88, currentEmotion: 'focused' });
 
   useEffect(() => {
@@ -30,7 +29,7 @@ export function useFaceTracking(videoRef: React.RefObject<HTMLVideoElement | nul
       try {
         const { FaceMesh } = await import('@mediapipe/face_mesh');
         faceMeshInstance = new FaceMesh({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`,
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
         });
 
         faceMeshInstance.setOptions({
@@ -80,7 +79,6 @@ export function useFaceTracking(videoRef: React.RefObject<HTMLVideoElement | nul
         const processFrame = async (timestamp: number) => {
           if (!isMounted) return;
 
-          // Throttle tracking calls to ~10 fps to prevent main thread & asset loader overload
           if (
             videoRef.current &&
             videoRef.current.readyState >= 2 &&

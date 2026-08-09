@@ -10,10 +10,7 @@ logger = logging.getLogger(__name__)
 D_ID_API_KEY = os.environ.get('D_ID_API_KEY', '')
 D_ID_BASE_URL = 'https://api.d-id.com'
 
-# Alex's portrait hosted as base64 or a public URL
-# We read the local file and encode it for D-ID if no public URL is set
 ALEX_PUBLIC_IMAGE_URL = os.environ.get('ALEX_IMAGE_URL', '')
-
 
 def _get_auth_headers():
     """Return D-ID Basic Auth headers."""
@@ -24,7 +21,6 @@ def _get_auth_headers():
         'Accept': 'application/json',
     }
 
-
 def upload_alex_image() -> str:
     """
     Upload Alex's portrait to D-ID image storage and return the hosted URL.
@@ -33,7 +29,6 @@ def upload_alex_image() -> str:
     if ALEX_PUBLIC_IMAGE_URL:
         return ALEX_PUBLIC_IMAGE_URL
 
-    # Read the local portrait file
     portrait_path = Path(__file__).parent.parent.parent / 'staticfiles' / 'alex_interviewer.png'
     if not portrait_path.exists():
         raise FileNotFoundError(f"Alex portrait not found at {portrait_path}")
@@ -41,7 +36,6 @@ def upload_alex_image() -> str:
     with open(portrait_path, 'rb') as f:
         image_data = f.read()
 
-    # Upload to D-ID
     upload_url = f'{D_ID_BASE_URL}/images'
     encoded_image = base64.b64encode(image_data).decode()
 
@@ -65,7 +59,6 @@ def upload_alex_image() -> str:
         logger.error(f"D-ID image upload failed: {response.status_code} {response.text}")
         raise Exception(f"D-ID upload failed: {response.text}")
 
-
 def create_streaming_session() -> dict:
     """
     Create a D-ID Streaming session (WebRTC).
@@ -78,7 +71,7 @@ def create_streaming_session() -> dict:
 
     payload = {
         'source_url': image_url,
-        'driver_url': 'bank://lively/',   # D-ID's built-in natural motion driver
+        'driver_url': 'bank://lively/',   
         'config': {
             'stitch': True,
             'fluent': True,
@@ -104,7 +97,6 @@ def create_streaming_session() -> dict:
         logger.error(f"D-ID streaming session creation failed: {response.status_code} {response.text}")
         raise Exception(f"D-ID streaming error: {response.text}")
 
-
 def send_sdp_answer(stream_id: str, session_id: str, answer: dict) -> dict:
     """Send WebRTC SDP answer back to D-ID."""
     payload = {
@@ -120,7 +112,6 @@ def send_sdp_answer(stream_id: str, session_id: str, answer: dict) -> dict:
     if response.status_code == 200:
         return response.json()
     raise Exception(f"D-ID SDP answer failed: {response.text}")
-
 
 def send_ice_candidate(stream_id: str, session_id: str, candidate: dict) -> dict:
     """Send ICE candidate to D-ID."""
@@ -139,7 +130,6 @@ def send_ice_candidate(stream_id: str, session_id: str, candidate: dict) -> dict
     if response.status_code == 200:
         return response.json()
     raise Exception(f"D-ID ICE candidate failed: {response.text}")
-
 
 def speak_text(stream_id: str, session_id: str, text: str, voice_id: str = 'en-US-GuyNeural') -> dict:
     """
@@ -179,7 +169,6 @@ def speak_text(stream_id: str, session_id: str, text: str, voice_id: str = 'en-U
     else:
         logger.error(f"D-ID speak failed: {response.status_code} {response.text}")
         raise Exception(f"D-ID speak error: {response.text}")
-
 
 def close_stream(stream_id: str, session_id: str) -> bool:
     """Close and clean up the D-ID streaming session."""

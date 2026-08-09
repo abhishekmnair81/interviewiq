@@ -8,7 +8,7 @@ router.register(r'logs', AnalysisPipelineLogViewSet, basename='analysis-log')
 
 urlpatterns = [
     path('', include(router.urls)),
-    # D-ID Streaming Avatar endpoints
+
     path('avatar/stream/', DIDStreamView.as_view(), name='did-stream-create'),
     path('avatar/stream/<str:stream_id>/sdp/', DIDSdpView.as_view(), name='did-stream-sdp'),
     path('avatar/stream/<str:stream_id>/ice/', DIDIceView.as_view(), name='did-stream-ice'),

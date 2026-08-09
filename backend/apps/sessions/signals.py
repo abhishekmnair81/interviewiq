@@ -5,7 +5,6 @@ from django.dispatch import receiver
 
 logger = logging.getLogger(__name__)
 
-
 @receiver(post_save, sender='interview_sessions.InterviewSession')
 def trigger_analysis_on_queue(sender, instance, created, **kwargs):
     update_fields = kwargs.get('update_fields')
@@ -21,7 +20,6 @@ def trigger_analysis_on_queue(sender, instance, created, **kwargs):
         from apps.analysis.tasks import analyze_session
         logger.info(f'[Signal] Session {instance.id} queued with video_url — starting analysis worker thread')
 
-        # Run analysis in background thread so HTTP response is instant & analysis completes immediately
         t = threading.Thread(target=analyze_session, args=(str(instance.id),), daemon=True)
         t.start()
 

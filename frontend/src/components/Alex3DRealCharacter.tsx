@@ -1,631 +1,438 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export type AvatarState = 'idle' | 'speaking' | 'thinking' | 'listening';
 
 interface Alex3DRealCharacterProps {
   state: AvatarState;
+  alexText?: string;
   candidateName?: string;
   jobRole?: string;
 }
 
-const EQUALIZER_BARS = [35, 75, 50, 95, 65, 85, 45, 70, 60, 90, 40, 65, 80, 100, 55, 70, 45, 85];
+interface VisemeTarget {
+  jaw: number;
+  mouth: number;
+  aa: number;
+  O: number;
+  E: number;
+  I: number;
+  U: number;
+  pp: number;
+  ff: number;
+  th: number;
+  ss: number;
+  smile: number;
+  cheek: number;
+}
+
+const NEUTRAL_VISEME: VisemeTarget = {
+  jaw: 0,
+  mouth: 0.02,
+  aa: 0,
+  O: 0,
+  E: 0,
+  I: 0,
+  U: 0,
+  pp: 0,
+  ff: 0,
+  th: 0,
+  ss: 0,
+  smile: 0.08,
+  cheek: 0.04,
+};
+
+function getVisemeForChar(char: string, prevChar: string = ''): VisemeTarget {
+  const c = char.toLowerCase();
+  const pair = (prevChar + c).toLowerCase();
+
+  if (pair === 'th') {
+    return { ...NEUTRAL_VISEME, jaw: 0.12, mouth: 0.18, th: 0.7, smile: 0.06 };
+  }
+  if (pair === 'ch' || pair === 'sh') {
+    return { ...NEUTRAL_VISEME, jaw: 0.14, mouth: 0.22, ss: 0.6, O: 0.2, smile: 0.05 };
+  }
+
+  switch (c) {
+    case 'a':
+      return { ...NEUTRAL_VISEME, jaw: 0.34, mouth: 0.42, aa: 0.65, smile: 0.08, cheek: 0.12 };
+    case 'e':
+      return { ...NEUTRAL_VISEME, jaw: 0.12, mouth: 0.22, E: 0.6, I: 0.3, smile: 0.14, cheek: 0.1 };
+    case 'i':
+      return { ...NEUTRAL_VISEME, jaw: 0.1, mouth: 0.18, I: 0.65, E: 0.2, smile: 0.12, cheek: 0.08 };
+    case 'o':
+      return { ...NEUTRAL_VISEME, jaw: 0.22, mouth: 0.3, O: 0.7, U: 0.25, smile: 0.04, cheek: 0.04 };
+    case 'u':
+      return { ...NEUTRAL_VISEME, jaw: 0.14, mouth: 0.2, U: 0.75, O: 0.3, smile: 0.04, cheek: 0.04 };
+    case 'm':
+    case 'b':
+    case 'p':
+      return { ...NEUTRAL_VISEME, jaw: 0.0, mouth: 0.02, pp: 0.85, smile: 0.05 };
+    case 'f':
+    case 'v':
+      return { ...NEUTRAL_VISEME, jaw: 0.08, mouth: 0.12, ff: 0.75, smile: 0.06 };
+    case 's':
+    case 'z':
+    case 'c':
+      return { ...NEUTRAL_VISEME, jaw: 0.08, mouth: 0.14, ss: 0.65, I: 0.2, smile: 0.1 };
+    case 't':
+    case 'd':
+    case 'n':
+    case 'l':
+    case 'r':
+      return { ...NEUTRAL_VISEME, jaw: 0.14, mouth: 0.2, E: 0.3, I: 0.2, smile: 0.08 };
+    case 'k':
+    case 'g':
+    case 'q':
+    case 'h':
+    case 'x':
+      return { ...NEUTRAL_VISEME, jaw: 0.22, mouth: 0.28, aa: 0.35, smile: 0.06 };
+    case ' ':
+    case ',':
+    case '.':
+    case '?':
+    case '!':
+      return NEUTRAL_VISEME;
+    default:
+      return { ...NEUTRAL_VISEME, jaw: 0.12, mouth: 0.18, aa: 0.3, smile: 0.08 };
+  }
+}
 
 export function Alex3DRealCharacter({
   state,
-  candidateName = 'Candidate',
-  jobRole = 'Software Engineer',
+  alexText = '',
 }: Alex3DRealCharacterProps) {
   const mountRef = useRef<HTMLDivElement>(null);
-  const [barHeights, setBarHeights] = useState<number[]>(EQUALIZER_BARS.map(() => 15));
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-
   const stateRef = useRef<AvatarState>(state);
+  const alexTextRef = useRef<string>(alexText);
+
+  const [progress, setProgress] = useState<number | null>(0);
+
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
-  const mousePosRef = useRef({ x: 0, y: 0 });
-
-  // Mouse / Candidate Gaze Tracking Listener
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!mountRef.current) return;
-    const rect = mountRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
-    mousePosRef.current = { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) };
-    setMousePos({ x, y });
-  }, []);
+  useEffect(() => {
+    alexTextRef.current = alexText;
+  }, [alexText]);
 
   useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [handleMouseMove]);
+    const el = mountRef.current;
+    if (!el) return;
 
-  // Three.js WebGL 3D Character Engine
-  useEffect(() => {
-    const container = mountRef.current;
-    if (!container) return;
+    const W = el.clientWidth || 400;
+    const H = el.clientHeight || 300;
 
-    // ── 1. WebGL Scene & Camera ──────────────────────────────────────────────
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x060913);
-
-    const width = container.clientWidth || 380;
-    const height = container.clientHeight || 440;
-
-    const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 100);
-    camera.position.set(0, 1.48, 4.0);
-    camera.lookAt(0, 1.38, 0);
-
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      powerPreference: 'high-performance',
-    });
-    renderer.setSize(width, height);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(W, H);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
 
-    while (container.firstChild) {
-      container.removeChild(container.firstChild);
-    }
-    container.appendChild(renderer.domElement);
-
-    // ── 2. Studio Multi-Light Rig ────────────────────────────────────────────
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
-    scene.add(ambientLight);
-
-    // Key Light (Warm Key)
-    const keyLight = new THREE.DirectionalLight(0xffedd5, 2.2);
-    keyLight.position.set(2.8, 3.8, 3.8);
-    keyLight.castShadow = true;
-    keyLight.shadow.mapSize.width = 1024;
-    keyLight.shadow.mapSize.height = 1024;
-    scene.add(keyLight);
-
-    // Soft Blue Fill Light
-    const fillLight = new THREE.DirectionalLight(0x818cf8, 1.4);
-    fillLight.position.set(-2.8, 2.2, 2.8);
-    scene.add(fillLight);
-
-    // Vibrant Rim Backlight
-    const rimLight = new THREE.PointLight(0xa855f7, 3.2, 9);
-    rimLight.position.set(0, 3.0, -2.0);
-    scene.add(rimLight);
-
-    // ── 3. High-Fidelity Executive 3D Character Rig ──────────────────────────
-    const avatarGroup = new THREE.Group();
-    scene.add(avatarGroup);
-
-    // Materials
-    const skinMaterial = new THREE.MeshStandardMaterial({
-      color: 0xe5b887,
-      roughness: 0.38,
-      metalness: 0.04,
-    });
-
-    const suitMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0f172a, // Executive Dark Charcoal Navy
-      roughness: 0.6,
-      metalness: 0.12,
-    });
-
-    const shirtMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf8fafc,
-      roughness: 0.3,
-    });
-
-    const tieMaterial = new THREE.MeshStandardMaterial({
-      color: 0x4338ca, // Indigo Tie
-      roughness: 0.25,
-      metalness: 0.2,
-    });
-
-    const glassesFrameMaterial = new THREE.MeshStandardMaterial({
-      color: 0x18181b, // Sleek Matte Black Frames
-      roughness: 0.2,
-      metalness: 0.8,
-    });
-
-    const glassesLensMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      transmission: 0.92,
-      opacity: 1,
-      transparent: true,
-      roughness: 0.05,
-      ior: 1.5,
-    });
-
-    const hairMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1c1917,
-      roughness: 0.8,
-    });
-
-    const eyeScleraMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.1,
-    });
-
-    const irisMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1d4ed8, // High-Depth Sapphire Blue Iris
-      roughness: 0.12,
-      metalness: 0.25,
-    });
-
-    const pupilMaterial = new THREE.MeshStandardMaterial({
-      color: 0x020617,
-      roughness: 0.05,
-    });
-
-    const lipMaterial = new THREE.MeshStandardMaterial({
-      color: 0xbc6c58,
-      roughness: 0.42,
-    });
-
-    const browMaterial = new THREE.MeshStandardMaterial({
-      color: 0x27272a,
-      roughness: 0.7,
-    });
-
-    // ── Torso & Suit Assembly ──
-    const torsoGroup = new THREE.Group();
-    torsoGroup.position.set(0, 0.22, 0);
-
-    const suitGeo = new THREE.CylinderGeometry(0.6, 0.7, 1.28, 32);
-    const suitMesh = new THREE.Mesh(suitGeo, suitMaterial);
-    suitMesh.position.set(0, 0.4, 0);
-    suitMesh.castShadow = true;
-    suitMesh.receiveShadow = true;
-    torsoGroup.add(suitMesh);
-
-    const shirtGeo = new THREE.CylinderGeometry(0.23, 0.27, 0.88, 20);
-    const shirtMesh = new THREE.Mesh(shirtGeo, shirtMaterial);
-    shirtMesh.position.set(0, 0.62, 0.33);
-    torsoGroup.add(shirtMesh);
-
-    const tieGeo = new THREE.BoxGeometry(0.088, 0.54, 0.05);
-    const tieMesh = new THREE.Mesh(tieGeo, tieMaterial);
-    tieMesh.position.set(0, 0.52, 0.44);
-    torsoGroup.add(tieMesh);
-
-    // Lapels
-    const lapelGeo = new THREE.BoxGeometry(0.14, 0.52, 0.06);
-    const lapelLeft = new THREE.Mesh(lapelGeo, suitMaterial);
-    lapelLeft.position.set(-0.17, 0.66, 0.37);
-    lapelLeft.rotation.set(0.1, 0.1, -0.26);
-    torsoGroup.add(lapelLeft);
-
-    const lapelRight = new THREE.Mesh(lapelGeo, suitMaterial);
-    lapelRight.position.set(0.17, 0.66, 0.37);
-    lapelRight.rotation.set(0.1, -0.1, 0.26);
-    torsoGroup.add(lapelRight);
-
-    avatarGroup.add(torsoGroup);
-
-    // ── Neck ──
-    const neckGeo = new THREE.CylinderGeometry(0.165, 0.195, 0.38, 24);
-    const neckMesh = new THREE.Mesh(neckGeo, skinMaterial);
-    neckMesh.position.set(0, 1.15, 0.04);
-    avatarGroup.add(neckMesh);
-
-    // ── Head Group (Root for Expressions & Eye Gaze) ──
-    const headGroup = new THREE.Group();
-    headGroup.position.set(0, 1.54, 0.05);
-
-    // Skull Base
-    const skullGeo = new THREE.SphereGeometry(0.35, 32, 32);
-    skullGeo.scale(1, 1.19, 0.97);
-    const skullMesh = new THREE.Mesh(skullGeo, skinMaterial);
-    skullMesh.castShadow = true;
-    headGroup.add(skullMesh);
-
-    // Jaw & Chin Structure
-    const jawGeo = new THREE.BoxGeometry(0.43, 0.23, 0.38);
-    const jawMesh = new THREE.Mesh(jawGeo, skinMaterial);
-    jawMesh.position.set(0, -0.22, 0.08);
-    headGroup.add(jawMesh);
-
-    // Hair Structure
-    const hairGeo = new THREE.SphereGeometry(0.375, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.56);
-    hairGeo.scale(1.02, 1.12, 1.03);
-    const hairMesh = new THREE.Mesh(hairGeo, hairMaterial);
-    hairMesh.position.set(0, 0.04, -0.02);
-    headGroup.add(hairMesh);
-
-    // ── Ears ──
-    const earGeo = new THREE.SphereGeometry(0.07, 16, 16);
-    earGeo.scale(0.4, 0.8, 0.5);
-
-    const earLeft = new THREE.Mesh(earGeo, skinMaterial);
-    earLeft.position.set(-0.35, 0.04, 0.02);
-    earLeft.rotation.set(0, -0.2, 0.1);
-    headGroup.add(earLeft);
-
-    const earRight = new THREE.Mesh(earGeo, skinMaterial);
-    earRight.position.set(0.35, 0.04, 0.02);
-    earRight.rotation.set(0, 0.2, -0.1);
-    headGroup.add(earRight);
-
-    // ── Anatomical Eyes ──
-    const eyeGeo = new THREE.SphereGeometry(0.063, 24, 24);
-    const irisGeo = new THREE.SphereGeometry(0.038, 20, 20);
-    const pupilGeo = new THREE.SphereGeometry(0.021, 16, 16);
-
-    // Left Eye
-    const leftEyeGroup = new THREE.Group();
-    leftEyeGroup.position.set(-0.125, 0.065, 0.3);
-
-    const leftSclera = new THREE.Mesh(eyeGeo, eyeScleraMaterial);
-    leftEyeGroup.add(leftSclera);
-
-    const leftIris = new THREE.Mesh(irisGeo, irisMaterial);
-    leftIris.position.set(0, 0, 0.032);
-    leftEyeGroup.add(leftIris);
-
-    const leftPupil = new THREE.Mesh(pupilGeo, pupilMaterial);
-    leftPupil.position.set(0, 0, 0.048);
-    leftEyeGroup.add(leftPupil);
-
-    headGroup.add(leftEyeGroup);
-
-    // Right Eye
-    const rightEyeGroup = new THREE.Group();
-    rightEyeGroup.position.set(0.125, 0.065, 0.3);
-
-    const rightSclera = new THREE.Mesh(eyeGeo, eyeScleraMaterial);
-    rightEyeGroup.add(rightSclera);
-
-    const rightIris = new THREE.Mesh(irisGeo, irisMaterial);
-    rightIris.position.set(0, 0, 0.032);
-    rightEyeGroup.add(rightIris);
-
-    const rightPupil = new THREE.Mesh(pupilGeo, pupilMaterial);
-    rightPupil.position.set(0, 0, 0.048);
-    rightEyeGroup.add(rightPupil);
-
-    headGroup.add(rightEyeGroup);
-
-    // Eyelids (Blinking Mechanics)
-    const eyelidGeo = new THREE.BoxGeometry(0.14, 0.068, 0.035);
-    const leftEyelid = new THREE.Mesh(eyelidGeo, skinMaterial);
-    leftEyelid.position.set(-0.125, 0.112, 0.32);
-    headGroup.add(leftEyelid);
-
-    const rightEyelid = new THREE.Mesh(eyelidGeo, skinMaterial);
-    rightEyelid.position.set(0.125, 0.112, 0.32);
-    headGroup.add(rightEyelid);
-
-    // ── Eyebrows ──
-    const browGeo = new THREE.BoxGeometry(0.138, 0.025, 0.03);
-
-    const leftBrow = new THREE.Mesh(browGeo, browMaterial);
-    leftBrow.position.set(-0.125, 0.17, 0.33);
-    leftBrow.rotation.z = 0.05;
-    headGroup.add(leftBrow);
-
-    const rightBrow = new THREE.Mesh(browGeo, browMaterial);
-    rightBrow.position.set(0.125, 0.17, 0.33);
-    rightBrow.rotation.z = -0.05;
-    headGroup.add(rightBrow);
-
-    // Nose
-    const noseGeo = new THREE.ConeGeometry(0.046, 0.125, 16);
-    const noseMesh = new THREE.Mesh(noseGeo, skinMaterial);
-    noseMesh.position.set(0, -0.02, 0.36);
-    noseMesh.rotation.x = 0.15;
-    headGroup.add(noseMesh);
-
-    // ── Executive Glasses (Polished Frame & Reflective Lens) ──
-    const glassFrameGroup = new THREE.Group();
-    glassFrameGroup.position.set(0, 0.065, 0.33);
-
-    const rimGeo = new THREE.BoxGeometry(0.15, 0.08, 0.02);
-
-    const leftGlassRim = new THREE.Mesh(rimGeo, glassesFrameMaterial);
-    leftGlassRim.position.set(-0.125, 0, 0);
-    glassFrameGroup.add(leftGlassRim);
-
-    const rightGlassRim = new THREE.Mesh(rimGeo, glassesFrameMaterial);
-    rightGlassRim.position.set(0.125, 0, 0);
-    glassFrameGroup.add(rightGlassRim);
-
-    const bridgeGeo = new THREE.BoxGeometry(0.08, 0.015, 0.02);
-    const bridgeMesh = new THREE.Mesh(bridgeGeo, glassesFrameMaterial);
-    bridgeMesh.position.set(0, 0.02, 0);
-    glassFrameGroup.add(bridgeMesh);
-
-    const lensGeo = new THREE.BoxGeometry(0.138, 0.07, 0.01);
-    const leftLens = new THREE.Mesh(lensGeo, glassesLensMaterial);
-    leftLens.position.set(-0.125, 0, 0.005);
-    glassFrameGroup.add(leftLens);
-
-    const rightLens = new THREE.Mesh(lensGeo, glassesLensMaterial);
-    rightLens.position.set(0.125, 0, 0.005);
-    glassFrameGroup.add(rightLens);
-
-    headGroup.add(glassFrameGroup);
-
-    // ── Mouth & Viseme Assembly ──
-    const mouthGroup = new THREE.Group();
-    mouthGroup.position.set(0, -0.165, 0.32);
-
-    const lipUpperGeo = new THREE.BoxGeometry(0.165, 0.026, 0.04);
-    const lipUpper = new THREE.Mesh(lipUpperGeo, lipMaterial);
-    lipUpper.position.set(0, 0.015, 0);
-    mouthGroup.add(lipUpper);
-
-    const lipLowerGeo = new THREE.BoxGeometry(0.145, 0.032, 0.04);
-    const lipLower = new THREE.Mesh(lipLowerGeo, lipMaterial);
-    lipLower.position.set(0, -0.015, 0);
-    mouthGroup.add(lipLower);
-
-    headGroup.add(mouthGroup);
-    avatarGroup.add(headGroup);
-
-    // ── Floor Contact Shadow Plane ──
-    const shadowPlaneGeo = new THREE.PlaneGeometry(3, 3);
-    const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.3 });
-    const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
-    shadowPlane.rotation.x = -Math.PI / 2;
-    shadowPlane.position.y = -0.4;
-    shadowPlane.receiveShadow = true;
-    scene.add(shadowPlane);
-
-    // ── 4. 60 FPS Procedural Animation & Interactive Gaze Engine ────────────
-    let animId: number;
-    const clock = new THREE.Clock();
-    let blinkTimer = 0;
-    let isBlinking = false;
-
-    const lerp = (start: number, end: number, amt: number) => start + (end - start) * amt;
-
-    let targetJawOpen = 0;
-    let targetHeadRotX = 0;
-    let targetHeadRotY = 0;
-    let targetHeadRotZ = 0;
-    let targetBrowY = 0.17;
-    let targetBrowRotZ = 0.05;
-
-    const renderLoop = () => {
-      animId = requestAnimationFrame(renderLoop);
-      const delta = clock.getDelta();
-      const time = clock.getElapsedTime();
-      const currentState = stateRef.current;
-      const mouse = mousePosRef.current;
-
-      // A. Natural Chest Breathing & Body Sway
-      torsoGroup.position.y = 0.22 + Math.sin(time * 1.5) * 0.012;
-      avatarGroup.rotation.y = Math.sin(time * 0.7) * 0.015;
-
-      // B. Candidate Interactive Gaze Tracking (Eyes & Head follow cursor slightly)
-      const gazeX = mouse.x * 0.15;
-      const gazeY = mouse.y * 0.12;
-
-      leftEyeGroup.rotation.y = lerp(leftEyeGroup.rotation.y, gazeX * 0.6, 0.1);
-      leftEyeGroup.rotation.x = lerp(leftEyeGroup.rotation.x, -gazeY * 0.4, 0.1);
-      rightEyeGroup.rotation.y = lerp(rightEyeGroup.rotation.y, gazeX * 0.6, 0.1);
-      rightEyeGroup.rotation.x = lerp(rightEyeGroup.rotation.x, -gazeY * 0.4, 0.1);
-
-      // C. Human Eye Blinking Mechanics
-      blinkTimer += delta;
-      if (blinkTimer > 2.8 && !isBlinking) {
-        isBlinking = true;
-      }
-      if (isBlinking) {
-        leftEyelid.position.y = 0.065;
-        rightEyelid.position.y = 0.065;
-        if (blinkTimer > 2.96) {
-          isBlinking = false;
-          blinkTimer = 0;
-          leftEyelid.position.y = 0.112;
-          rightEyelid.position.y = 0.112;
+    while (el.firstChild) el.removeChild(el.firstChild);
+    el.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x070b14);
+
+    const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
+    camera.position.set(0, 1.4, 1.85);
+    camera.lookAt(0, 1.15, 0);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+
+    const key = new THREE.DirectionalLight(0xfff8ee, 2.5);
+    key.position.set(1.5, 2.8, 2.5);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    scene.add(key);
+
+    const fill = new THREE.DirectionalLight(0x7c8cf8, 1.4);
+    fill.position.set(-1.8, 1.5, 1.8);
+    scene.add(fill);
+
+    const rim = new THREE.PointLight(0x9333ea, 3.2, 7);
+    rim.position.set(0, 2.2, -1.5);
+    scene.add(rim);
+
+    const morphMeshes: THREE.Mesh[] = [];
+    let headBone: THREE.Object3D | null = null;
+    let mixer: THREE.AnimationMixer | null = null;
+
+    const setMorph = (name: string, w: number) => {
+      for (const m of morphMeshes) {
+        const d = m.morphTargetDictionary,
+          inf = m.morphTargetInfluences;
+        if (d && inf) {
+          const idx = d[name];
+          if (idx !== undefined) inf[idx] = Math.max(0, Math.min(1, w));
         }
       }
+    };
 
-      // D. State-Driven Emotion & Expression Targets
-      if (currentState === 'speaking') {
-        // 🎙 SPEAKING: Dynamic Viseme Speech Articulation
-        const speechWave = Math.abs(Math.sin(time * 12)) * 0.048 + Math.abs(Math.cos(time * 7.5)) * 0.032;
-        targetJawOpen = speechWave;
+    setProgress(5);
+    new GLTFLoader().load(
+      encodeURI('/A person sitting comfortably at a desk, looki_variant2.glb'),
+      (gltf) => {
+        const model = gltf.scene;
+        model.traverse((c) => {
+          const m = c as THREE.Mesh;
+          if (m.isMesh) {
+            m.castShadow = true;
+            m.receiveShadow = true;
+            if (m.morphTargetDictionary && m.morphTargetInfluences) morphMeshes.push(m);
+          }
+        });
 
-        targetHeadRotX = gazeY * 0.2 + Math.sin(time * 4) * 0.04;
-        targetHeadRotY = gazeX * 0.3 + Math.sin(time * 2.5) * 0.05;
-        targetHeadRotZ = Math.sin(time * 3) * 0.02;
+        headBone = model.getObjectByName('Head') ?? null;
 
-        targetBrowY = 0.18 + Math.sin(time * 3) * 0.008;
-        targetBrowRotZ = 0.08;
+        const box = new THREE.Box3().setFromObject(model);
+        const sz = box.getSize(new THREE.Vector3());
+        const ctr = box.getCenter(new THREE.Vector3());
+        const scl = 1.92 / Math.max(sz.x, sz.y, sz.z, 0.001);
+        model.scale.setScalar(scl);
+        model.position.set(-ctr.x * scl, -box.min.y * scl, -ctr.z * scl);
+        scene.add(model);
 
-        setBarHeights(
-          EQUALIZER_BARS.map((h, i) =>
-            Math.max(20, (h * (0.5 + Math.abs(Math.sin(time * 8 + i * 0.6)) * 0.5)) % 100)
-          )
-        );
-      } else if (currentState === 'listening') {
-        // 👂 LISTENING: Empathetic Attentive Nods & Warm Posture
-        targetJawOpen = 0;
-        targetHeadRotX = gazeY * 0.2 + Math.sin(time * 2) * 0.045; // Gentle nod
-        targetHeadRotY = gazeX * 0.3 + Math.sin(time * 1.2) * 0.03;
-        targetHeadRotZ = Math.sin(time * 1.4) * 0.015;
+        if (gltf.animations.length > 0) {
+          mixer = new THREE.AnimationMixer(model);
+          const action = mixer.clipAction(gltf.animations[0]);
+          action.setLoop(THREE.LoopRepeat, Infinity);
+          action.play();
+        }
 
-        targetBrowY = 0.175;
-        targetBrowRotZ = 0.03;
+        scene.updateMatrixWorld(true);
+        if (headBone) {
+          const hp = new THREE.Vector3();
+          headBone.getWorldPosition(hp);
+          camera.position.set(0, hp.y - 0.18, 1.55);
+          camera.lookAt(0, hp.y - 0.22, 0);
+        }
 
-        setBarHeights(EQUALIZER_BARS.map((_, i) => 15 + Math.abs(Math.sin(time * 3 + i * 0.4)) * 18));
-      } else if (currentState === 'thinking') {
-        // 🧠 THINKING: Furrowed Eyebrows & Pensive Reflection
-        targetJawOpen = 0.005;
-        targetHeadRotX = -0.06 + Math.sin(time * 1.1) * 0.018;
-        targetHeadRotY = 0.12 + Math.sin(time * 0.8) * 0.025;
-        targetHeadRotZ = -0.04;
+        setProgress(100);
+        setTimeout(() => setProgress(null), 300);
+      },
+      (xhr) => {
+        if (xhr.total > 0) setProgress(Math.round((xhr.loaded / xhr.total) * 100));
+      },
+      (err) => {
+        console.error('GLB error:', err);
+        setProgress(null);
+      }
+    );
 
-        targetBrowY = 0.158;
-        targetBrowRotZ = -0.1;
+    const clock = new THREE.Clock();
+    let raf: number;
 
-        setBarHeights(EQUALIZER_BARS.map(() => 10));
-      } else {
-        // ⏸ IDLE: Confident & Natural Posture
-        targetJawOpen = 0;
-        targetHeadRotX = gazeY * 0.15 + Math.sin(time * 1.1) * 0.015;
-        targetHeadRotY = gazeX * 0.2 + Math.sin(time * 0.8) * 0.015;
-        targetHeadRotZ = 0;
+    let sJaw = 0,
+      sMouth = 0,
+      sAA = 0,
+      sO = 0,
+      sE = 0,
+      sI = 0,
+      sU = 0,
+      sPP = 0,
+      sFF = 0,
+      sTH = 0,
+      sSS = 0;
+    let sSmile = 0.06,
+      sCheek = 0.04;
+    let sBrowUp = 0,
+      sBrowOuter = 0,
+      sBrowDn = 0;
+    let sBlink = 0;
+    let sHeadX = -0.26,
+      sHeadY = 0;
 
-        targetBrowY = 0.17;
-        targetBrowRotZ = 0.04;
+    let blinkT = 0,
+      blinkPh: 'wait' | 'close' | 'open' = 'wait';
+    const BLINK_INT = 3.6;
 
-        setBarHeights(EQUALIZER_BARS.map(() => 12));
+    let speechStartTime = 0;
+    let lastState: AvatarState = 'idle';
+
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const t = clock.getElapsedTime();
+      const st = stateRef.current;
+      const currentText = alexTextRef.current || '';
+
+      if (st === 'speaking' && lastState !== 'speaking') {
+        speechStartTime = t;
+      }
+      lastState = st;
+
+      if (mixer) {
+        let animSpeed = 0.2;
+        if (st === 'speaking') {
+          animSpeed = 0.5;
+        } else if (st === 'listening') {
+          animSpeed = 0.25;
+        } else if (st === 'thinking') {
+          animSpeed = 0.15;
+        }
+        mixer.update(dt * animSpeed);
       }
 
-      // E. Smooth Interpolation
-      lipLower.position.y = lerp(lipLower.position.y, -0.015 - targetJawOpen * 1.5, 0.2);
-      mouthGroup.scale.y = lerp(mouthGroup.scale.y, 1 + targetJawOpen * 8, 0.2);
+      blinkT += dt;
+      if (blinkPh === 'wait' && blinkT > BLINK_INT) {
+        blinkPh = 'close';
+        blinkT = 0;
+      }
+      if (blinkPh === 'close') {
+        sBlink = Math.min(1, blinkT / 0.08);
+        if (blinkT > 0.08) {
+          blinkPh = 'open';
+          blinkT = 0;
+        }
+      } else if (blinkPh === 'open') {
+        sBlink = Math.max(0, 1 - blinkT / 0.08);
+        if (blinkT > 0.08) {
+          blinkPh = 'wait';
+          blinkT = 0;
+          sBlink = 0;
+        }
+      }
+      setMorph('eyeBlinkLeft', sBlink);
+      setMorph('eyeBlinkRight', sBlink);
 
-      headGroup.rotation.x = lerp(headGroup.rotation.x, targetHeadRotX, 0.15);
-      headGroup.rotation.y = lerp(headGroup.rotation.y, targetHeadRotY, 0.15);
-      headGroup.rotation.z = lerp(headGroup.rotation.z, targetHeadRotZ, 0.15);
+      let targetViseme = NEUTRAL_VISEME;
+      let tBrowUp = 0,
+        tBrowOuter = 0,
+        tBrowDn = 0;
+      let tHeadX = 0.10,
+        tHeadY = 0;
 
-      leftBrow.position.y = lerp(leftBrow.position.y, targetBrowY, 0.15);
-      rightBrow.position.y = lerp(rightBrow.position.y, targetBrowY, 0.15);
-      leftBrow.rotation.z = lerp(leftBrow.rotation.z, targetBrowRotZ, 0.15);
-      rightBrow.rotation.z = lerp(rightBrow.rotation.z, -targetBrowRotZ, 0.15);
+      if (st === 'speaking') {
+        const speechTime = t - speechStartTime;
+        const charRate = 13.5;
+        const charIdx = Math.floor(speechTime * charRate);
+
+        if (currentText && currentText.length > 0 && charIdx < currentText.length) {
+          const currentChar = currentText[charIdx] || ' ';
+          const prevChar = charIdx > 0 ? currentText[charIdx - 1] : '';
+          targetViseme = getVisemeForChar(currentChar, prevChar);
+        } else {
+          const altCycle = Math.floor(speechTime * 5.5) % 5;
+          const altChars = ['a', 'e', 'o', 'm', 's'];
+          targetViseme = getVisemeForChar(altChars[altCycle]);
+        }
+
+        const emphCycle = Math.sin(t * 2.5);
+        tBrowUp = 0.08 + Math.max(0, emphCycle) * 0.12;
+        tBrowOuter = 0.05 + Math.max(0, emphCycle) * 0.06;
+
+        tHeadX = 0.10 + Math.sin(t * 0.7) * 0.035;
+        tHeadY = Math.sin(t * 0.4) * 0.025;
+      } else if (st === 'listening') {
+        targetViseme = { ...NEUTRAL_VISEME, smile: 0.14, cheek: 0.1 };
+        tBrowUp = 0.07;
+        tBrowOuter = 0.04;
+        tHeadX = 0.12;
+      } else if (st === 'thinking') {
+        targetViseme = { ...NEUTRAL_VISEME, smile: 0.02, cheek: 0.02 };
+        tBrowDn = 0.18;
+        tHeadX = 0.08;
+      } else {
+        targetViseme = NEUTRAL_VISEME;
+      }
+
+      const MS = 0.12;
+      const ES = 0.05;
+      const HS = 0.03;
+
+      sJaw = lerp(sJaw, targetViseme.jaw, MS);
+      sMouth = lerp(sMouth, targetViseme.mouth, MS);
+      sAA = lerp(sAA, targetViseme.aa, MS);
+      sO = lerp(sO, targetViseme.O, MS);
+      sE = lerp(sE, targetViseme.E, MS);
+      sI = lerp(sI, targetViseme.I, MS);
+      sU = lerp(sU, targetViseme.U, MS);
+      sPP = lerp(sPP, targetViseme.pp, MS);
+      sFF = lerp(sFF, targetViseme.ff, MS);
+      sTH = lerp(sTH, targetViseme.th, MS);
+      sSS = lerp(sSS, targetViseme.ss, MS);
+
+      sSmile = lerp(sSmile, targetViseme.smile, ES);
+      sCheek = lerp(sCheek, targetViseme.cheek, ES);
+      sBrowUp = lerp(sBrowUp, tBrowUp, ES);
+      sBrowOuter = lerp(sBrowOuter, tBrowOuter, ES);
+      sBrowDn = lerp(sBrowDn, tBrowDn, ES);
+      sHeadX = lerp(sHeadX, tHeadX, HS);
+      sHeadY = lerp(sHeadY, tHeadY, HS);
+
+      setMorph('jawOpen', sJaw);
+      setMorph('mouthOpen', sMouth);
+      setMorph('viseme_aa', sAA);
+      setMorph('viseme_O', sO);
+      setMorph('viseme_E', sE);
+      setMorph('viseme_I', sI);
+      setMorph('viseme_U', sU);
+      setMorph('viseme_PP', sPP);
+      setMorph('viseme_FF', sFF);
+      setMorph('viseme_TH', sTH);
+      setMorph('viseme_SS', sSS);
+      setMorph('mouthSmile', sSmile);
+      setMorph('mouthSmileLeft', sSmile * 0.85);
+      setMorph('mouthSmileRight', sSmile * 0.85);
+      setMorph('cheekSquintLeft', sCheek);
+      setMorph('cheekSquintRight', sCheek);
+      setMorph('browInnerUp', sBrowUp);
+      setMorph('browOuterUpLeft', sBrowOuter);
+      setMorph('browOuterUpRight', sBrowOuter);
+      setMorph('browDownLeft', sBrowDn);
+      setMorph('browDownRight', sBrowDn);
+
+      if (headBone) {
+        headBone.rotation.x = sHeadX;
+        headBone.rotation.y = sHeadY;
+
+        scene.updateMatrixWorld(true);
+        const hp = new THREE.Vector3();
+        headBone.getWorldPosition(hp);
+        camera.position.set(0, hp.y - 0.18, 1.55);
+        camera.lookAt(0, hp.y - 0.22, 0);
+      }
 
       renderer.render(scene, camera);
     };
 
-    renderLoop();
+    tick();
 
-    const handleResize = () => {
-      if (!container) return;
-      const newW = container.clientWidth;
-      const newH = container.clientHeight;
-      camera.aspect = newW / newH;
+    const onResize = () => {
+      const w = el.clientWidth,
+        h = el.clientHeight;
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(newW, newH);
+      renderer.setSize(w, h);
     };
-
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', onResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(animId);
-      if (container && renderer.domElement) {
-        container.removeChild(renderer.domElement);
-      }
+      window.removeEventListener('resize', onResize);
+      cancelAnimationFrame(raf);
+      if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);
       renderer.dispose();
     };
   }, []);
 
-  const hudTheme = {
-    speaking: {
-      border: 'border-emerald-500/70 ring-4 ring-emerald-500/20 shadow-emerald-500/20',
-      badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50',
-      text: '🎙 Alex is Speaking',
-      barColor: 'bg-emerald-400',
-    },
-    listening: {
-      border: 'border-indigo-500/70 ring-4 ring-indigo-500/20 shadow-indigo-500/20',
-      badge: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50',
-      text: '👂 Alex is Listening',
-      barColor: 'bg-indigo-400',
-    },
-    thinking: {
-      border: 'border-amber-500/70 ring-4 ring-amber-500/20 shadow-amber-500/20',
-      badge: 'bg-amber-500/20 text-amber-300 border-amber-500/50',
-      text: '🧠 Evaluating STAR Response',
-      barColor: 'bg-amber-400',
-    },
-    idle: {
-      border: 'border-slate-800 shadow-slate-900/50',
-      badge: 'bg-slate-800/80 text-slate-400 border-slate-700',
-      text: '✨ Executive AI Interviewer',
-      barColor: 'bg-slate-600',
-    },
-  }[state];
-
   return (
-    <div
-      className={`relative w-full h-full min-h-[380px] sm:min-h-[440px] rounded-3xl overflow-hidden bg-slate-950 border transition-all duration-500 shadow-2xl flex flex-col justify-between p-4 select-none ${hudTheme.border}`}
-    >
-      {/* Cinematic Ambient Background Overlay */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/35 via-slate-950/85 to-slate-950 pointer-events-none" />
-
-      {/* Top Header HUD Bar */}
-      <div className="relative z-20 flex items-center justify-between">
-        <div className="flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-slate-700/80 shadow-lg">
-          <span className="relative flex h-2.5 w-2.5">
-            <span
-              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                state === 'speaking'
-                  ? 'bg-emerald-400'
-                  : state === 'listening'
-                  ? 'bg-indigo-400'
-                  : 'bg-amber-400'
-              }`}
-            />
-            <span
-              className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                state === 'speaking'
-                  ? 'bg-emerald-500'
-                  : state === 'listening'
-                  ? 'bg-indigo-500'
-                  : 'bg-slate-400'
-              }`}
-            />
-          </span>
-          <span className="text-xs font-black text-white tracking-wide">Alex (Executive 3D Character)</span>
+    <div className="relative w-full h-full flex items-center justify-center bg-[#070b14] overflow-hidden">
+      {progress !== null && (
+        <div className="absolute inset-0 bg-[#070b14]/95 z-30 flex flex-col items-center justify-center gap-4">
+          <div className="w-9 h-9 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold text-white tracking-wider uppercase">Loading AI Interviewer…</p>
         </div>
-
-        {/* Quality & Live Status Badges */}
-        <div className="flex items-center gap-2">
-          <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-indigo-950/80 text-indigo-300 border border-indigo-700/50">
-            60FPS WebGL
-          </span>
-          <div
-            className={`px-3 py-1 rounded-full text-[11px] font-black tracking-wider uppercase border shadow-md backdrop-blur-md transition-all duration-300 ${hudTheme.badge}`}
-          >
-            {hudTheme.text}
-          </div>
-        </div>
-      </div>
-
-      {/* Studio Viewport Brackets & 3D WebGL Canvas */}
-      <div className="relative flex-1 w-full flex items-center justify-center my-2 z-10 overflow-hidden rounded-2xl border border-slate-800/80 shadow-inner group">
-        {/* Corner Reticles */}
-        <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-indigo-500/60 z-20 pointer-events-none" />
-        <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-indigo-500/60 z-20 pointer-events-none" />
-        <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-indigo-500/60 z-20 pointer-events-none" />
-        <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-indigo-500/60 z-20 pointer-events-none" />
-
-        <div ref={mountRef} className="w-full h-full min-h-[310px]" />
-      </div>
-
-      {/* Bottom Live Audio Spectrum & Role Badge */}
-      <div className="relative z-20 w-full flex items-center justify-between bg-slate-900/85 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-slate-800 shadow-xl">
-        <div className="flex flex-col">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            Interviewing Candidate For
-          </span>
-          <span className="text-xs font-extrabold text-white truncate max-w-[180px]">{jobRole}</span>
-        </div>
-
-        {/* Real-time Spectrum Equalizer */}
-        <div className="flex items-center gap-1 h-6">
-          {barHeights.map((h, i) => (
-            <div
-              key={i}
-              className={`w-1 rounded-full transition-all duration-150 ${hudTheme.barColor}`}
-              style={{
-                height: `${h}%`,
-              }}
-            />
-          ))}
-        </div>
-      </div>
+      )}
+      <div ref={mountRef} className="w-full h-full" />
     </div>
   );
 }

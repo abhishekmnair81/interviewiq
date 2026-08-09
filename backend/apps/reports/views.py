@@ -7,7 +7,6 @@ from rest_framework.response import Response
 from .models import AnalysisReport
 from .serializers import AnalysisReportSerializer
 
-
 class AnalysisReportViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AnalysisReportSerializer
 

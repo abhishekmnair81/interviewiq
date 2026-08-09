@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from .models import AnalysisReport
 
-
 class AnalysisReportSerializer(serializers.ModelSerializer):
     session_question = serializers.CharField(source='session.question', read_only=True)
     session_category = serializers.CharField(source='session.question_category', read_only=True)

@@ -12,7 +12,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Persistent Auth: Auto-redirect if token exists
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (token) {
@@ -45,7 +44,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 text-slate-900 font-sans relative overflow-hidden">
-      {/* Soft Ambient Glows */}
+      {}
       <div className="ambient-blur w-[400px] h-[400px] bg-indigo-200/50 top-[-100px] left-1/2 -translate-x-1/2" />
       <div className="ambient-blur w-[300px] h-[300px] bg-emerald-200/40 bottom-[-50px] right-[-50px]" />
 

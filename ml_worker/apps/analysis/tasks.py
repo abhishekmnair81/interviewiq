@@ -3,12 +3,10 @@ from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
-
 @shared_task(name='apps.analysis.tasks.add_numbers')
 def add_numbers(x: int, y: int) -> int:
     logger.info(f"Executing add_numbers task: {x} + {y}")
     return x + y
-
 
 @shared_task(
     bind=True,

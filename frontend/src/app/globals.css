@@ -29,7 +29,6 @@
     background-attachment: fixed;
   }
 
-  /* Custom Sleek Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -47,7 +46,7 @@
 }
 
 @layer utilities {
-  /* Minimal Light Glass Cards */
+
   .glass-card {
     background: rgba(255, 255, 255, 0.88);
     backdrop-filter: blur(16px);
@@ -72,7 +71,6 @@
     border-bottom: 1px solid rgba(226, 232, 240, 0.8);
   }
 
-  /* Vibrant Clean Typography */
   .glow-brand {
     color: #4f46e5;
   }
@@ -85,7 +83,6 @@
     opacity: 0.4;
   }
 
-  /* Crisp Solid Buttons - No Blending Gradients */
   .btn-primary {
     background-color: #4f46e5;
     color: #ffffff;

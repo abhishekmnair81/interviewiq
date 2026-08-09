@@ -16,7 +16,6 @@ from .permissions import IsActiveUser
 
 logger = logging.getLogger(__name__)
 
-
 class RegisterView(APIView):
     """
     Registers a new user account and returns JWT tokens immediately.
@@ -40,7 +39,6 @@ class RegisterView(APIView):
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class LoginView(APIView):
     """
     Authenticates user credentials and returns access and refresh JWT tokens.
@@ -62,14 +60,13 @@ class LoginView(APIView):
                 },
                 status=status.HTTP_200_OK
             )
-        
+
         raw_email = request.data.get('email', 'unknown')
         logger.warning(f"Failed login attempt for email: {raw_email}")
         return Response(
             {"error": "Invalid email or password"},
             status=status.HTTP_401_UNAUTHORIZED
         )
-
 
 class LogoutView(APIView):
     """
@@ -96,7 +93,6 @@ class LogoutView(APIView):
                 {"error": "Token is invalid or expired"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
     """

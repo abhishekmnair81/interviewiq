@@ -7,7 +7,7 @@ export interface StarAnalysis {
   hasTask: boolean;
   hasAction: boolean;
   hasResult: boolean;
-  score: number; // 0 to 100
+  score: number;
   missingPhase: 'Situation' | 'Task' | 'Action' | 'Result' | null;
   coachingTip: string;
 }
@@ -31,14 +31,14 @@ const ACTION_KEYWORDS = [
 ];
 
 const RESULT_PATTERNS = [
-  /\b\d+(\.\d+)?%/i, // percentages like 30%, 45.5%
+  /\b\d+(\.\d+)?%/i,
   /\b(increased|reduced|decreased|improved|grew|saved|boosted|cut|lowered)\b/i,
   /\b(percent|million|thousand|billion|ms|seconds|minutes|hours)\b/i,
   /\bresulted in\b/i,
   /\bthe outcome was\b/i,
   /\bby \d+/i,
-  /\b\$\d+/i, // currency
-  /\b\d+x\b/i // 2x, 5x speedup
+  /\b\$\d+/i,
+  /\b\d+x\b/i
 ];
 
 export function useStarAnalyzer(text: string): StarAnalysis {

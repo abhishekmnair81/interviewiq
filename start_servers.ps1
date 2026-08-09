@@ -8,7 +8,6 @@ Write-Host "   InterviewIQ --- Starting Services" -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Kill stale servers
 Write-Host "[1/4] Stopping any old servers..." -ForegroundColor Yellow
 
 foreach ($port in @(8000, 3000)) {
@@ -21,7 +20,6 @@ foreach ($port in @(8000, 3000)) {
 
 Start-Sleep -Seconds 2
 
-# ── Backend ──────────────────────────────────────────────────────────────────
 Write-Host "[2/4] Starting Django backend (port 8000)..." -ForegroundColor Yellow
 
 $backendScript = @"
@@ -42,7 +40,6 @@ Start-Process powershell.exe `
 
 Start-Sleep -Seconds 4
 
-# ── Frontend ─────────────────────────────────────────────────────────────────
 Write-Host "[3/4] Starting Next.js frontend (port 3000)..." -ForegroundColor Yellow
 
 $frontendScript = @"
@@ -63,7 +60,6 @@ Start-Process powershell.exe `
 
 Start-Sleep -Seconds 6
 
-# ── Health check ─────────────────────────────────────────────────────────────
 Write-Host "[4/4] Verifying backend health..." -ForegroundColor Yellow
 
 $ok = $false

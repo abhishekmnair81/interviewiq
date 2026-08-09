@@ -115,11 +115,11 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans relative overflow-hidden">
-      {/* Background Soft Glows */}
+      {}
       <div className="ambient-blur w-[600px] h-[600px] bg-indigo-200/40 top-[-200px] left-1/2 -translate-x-1/2" />
       <div className="ambient-blur w-[400px] h-[400px] bg-emerald-200/30 bottom-[-100px] right-[-100px]" />
 
-      {/* Header Navigation */}
+      {}
       <header className="sticky top-0 z-30 glass-nav px-6 py-4 border-b border-slate-200/80">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <Link href="/dashboard" className="flex items-center gap-3">
@@ -151,9 +151,9 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* Main Dashboard Workspace */}
+      {}
       <main className="max-w-7xl mx-auto px-6 py-10 space-y-8 relative z-10">
-        {/* Banner Welcome */}
+        {}
         <div className="glass-card p-8 rounded-3xl border border-slate-200/90 relative overflow-hidden">
           <div className="flex flex-col md:flex-row justify-between md:items-center gap-6">
             <div>
@@ -176,7 +176,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Quick Metrics Grid */}
+          {}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
             {[
               { label: 'Total Sessions', value: reports.length, unit: 'sessions', icon: '📊' },
@@ -197,7 +197,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Analytics Progress Chart */}
+        {}
         {mounted && chartData.length > 1 && (
           <div className="glass-card p-6 rounded-3xl border border-slate-200/90">
             <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-6 flex items-center gap-2">
@@ -223,7 +223,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Session History Section */}
+        {}
         <div className="glass-card rounded-3xl border border-slate-200/90 overflow-hidden">
           <div className="px-6 py-5 border-b border-slate-200/80 flex items-center justify-between">
             <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">

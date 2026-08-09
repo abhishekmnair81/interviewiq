@@ -24,7 +24,6 @@ from apps.users.permissions import IsOwner, IsActiveUser
 
 logger = logging.getLogger(__name__)
 
-
 class InterviewSessionViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing interview sessions, video uploads, and pipeline status checks.
@@ -104,7 +103,6 @@ class InterviewSessionViewSet(viewsets.ModelViewSet):
         serializer = SessionStatusSerializer(session)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
 class RandomQuestionView(APIView):
     """
     Returns a random question from the question bank optionally filtered by category.
@@ -121,7 +119,7 @@ class RandomQuestionView(APIView):
         question = queryset.order_by('?').first()
 
         if not question:
-            # Fallback if DB is not seeded yet
+
             return Response(
                 {
                     "id": str(uuid.uuid4()),
@@ -133,7 +131,6 @@ class RandomQuestionView(APIView):
             )
 
         return Response(QuestionSerializer(question).data, status=status.HTTP_200_OK)
-
 
 class LiveInterviewSetupView(APIView):
     """
@@ -147,24 +144,23 @@ class LiveInterviewSetupView(APIView):
             "categories": [
                 {"id": "behavioral", "label": "Behavioral & STAR Method"},
                 {"id": "hr", "label": "Executive HR & Cultural Fit"},
-                {"id": "technical", "label": "Technical & System Design"}
+                {"id": "technical", "label": "Technical & Domain Specific"}
             ],
             "job_roles": [
-                "Software Engineer",
-                "Frontend Engineer",
-                "Backend Engineer",
-                "Full Stack Developer",
-                "Data Engineer",
-                "Product Manager",
-                "Engineering Manager"
+                "Software Engineer", "Data Scientist", "Product Manager",
+                "Cybersecurity Analyst", "DevOps Engineer", "AI/ML Engineer",
+                "Civil Engineer", "Mechanical Engineer", "Electrical Engineer",
+                "Chemical Engineer", "Electronics Engineer", "Biomedical Engineer",
+                "Finance & Accounting", "Marketing & Sales", "Human Resources",
+                "Healthcare / Medicine", "Law / Legal", "Education / Teaching",
+                "Architecture & Design", "Business Management",
             ],
             "difficulties": [
-                {"id": "easy", "label": "Junior / Entry Level"},
+                {"id": "easy",   "label": "Junior / Entry Level"},
                 {"id": "medium", "label": "Mid-Level / Senior"},
-                {"id": "hard", "label": "Lead / Staff Engineer"}
+                {"id": "hard",   "label": "Lead / Principal"}
             ]
         }, status=status.HTTP_200_OK)
-
 
 class GroqHRReactionView(APIView):
     """
@@ -217,7 +213,7 @@ Respond strictly in valid JSON format with the following keys:
                 return Response(content, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Groq API Error: {e}")
-            # Robust fallback response
+
             return Response(
                 {
                     "hr_verbal_reaction": f"Thank you for sharing that answer! As {hr_name}, I appreciate how clearly you structured your experience.",

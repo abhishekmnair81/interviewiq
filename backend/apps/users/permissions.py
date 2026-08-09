@@ -1,7 +1,6 @@
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
 
-
 class IsOwner(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if not request.user or not request.user.is_authenticated:
@@ -9,7 +8,6 @@ class IsOwner(permissions.BasePermission):
         if hasattr(obj, 'user'):
             return obj.user == request.user
         return obj == request.user
-
 
 class IsActiveUser(permissions.BasePermission):
     message = "Your account is inactive"

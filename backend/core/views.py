@@ -6,7 +6,6 @@ from django.core.cache import cache
 import django
 import sys
 
-
 class HealthCheckView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []

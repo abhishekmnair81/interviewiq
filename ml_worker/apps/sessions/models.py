@@ -2,7 +2,6 @@ import uuid
 from django.db import models
 from django.conf import settings
 
-
 class Question(models.Model):
     class Category(models.TextChoices):
         HR = 'hr', 'HR'
@@ -22,7 +21,6 @@ class Question(models.Model):
 
     class Meta:
         db_table = 'questions'
-
 
 class InterviewSession(models.Model):
     class Status(models.TextChoices):

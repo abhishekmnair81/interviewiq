@@ -86,7 +86,6 @@ export default function RecordPage() {
 
   const questionRef = useRef<Question | null>(null);
 
-  // CALL & LOBBY STATES
   type CallState = 'lobby' | 'in_call' | 'evaluating' | 'uploading' | 'processing' | 'done';
   const [callState, setCallState] = useState<CallState>('lobby');
 
@@ -95,13 +94,11 @@ export default function RecordPage() {
   const [question, setQuestion] = useState<Question | null>(null);
   const [loadingQuestion, setLoadingQuestion] = useState(false);
 
-  // Call Meeting Controls
   const [micMuted, setMicMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
   const [showCaptions, setShowCaptions] = useState(true);
   const [showChat, setShowChat] = useState(false);
 
-  // Meeting Room Stats & Groq Real-Time Reactions
   const [callSeconds, setCallSeconds] = useState(0);
   const [currentTurn, setCurrentTurn] = useState<number>(1);
   const [totalTurns] = useState<number>(3);
@@ -121,13 +118,11 @@ export default function RecordPage() {
   const [error, setError] = useState('');
   const [cameraStatus, setCameraStatus] = useState<'loading' | 'live' | 'fallback' | 'denied'>('loading');
 
-  // AI Avatar Speech & Subtitles
   const [avatarSpeaking, setAvatarSpeaking] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
 
   const currentProfile = HR_PROFILES[hrGender];
 
-  // Live Call Clock Timer
   useEffect(() => {
     if (callState !== 'in_call') return;
     const t = setInterval(() => setCallSeconds(s => s + 1), 1000);
@@ -144,7 +139,6 @@ export default function RecordPage() {
     }
   }, []);
 
-  // ── AI Avatar Speech Synthesis with Voice Matching (TTS) ─────────────
   const speakAIText = useCallback((text: string, onEnd?: () => void) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       if (onEnd) onEnd();
@@ -174,7 +168,6 @@ export default function RecordPage() {
 
     setAvatarSpeaking(true);
 
-    // Watchdog keep-alive for Chrome
     ttsKeepAliveRef.current = setInterval(() => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
@@ -221,7 +214,6 @@ export default function RecordPage() {
     speakNextSentence();
   }, [hrGender, stopTTSKeepAlive]);
 
-  // ── Web Speech Recognition for Live Captions ─────────────────────────
   const startSpeechRecognition = useCallback(() => {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -247,7 +239,7 @@ export default function RecordPage() {
       recognition.start();
       recognitionRef.current = recognition;
     } catch {
-      // Speech recognition optional
+
     }
   }, []);
 
@@ -258,7 +250,6 @@ export default function RecordPage() {
     }
   }, []);
 
-  // ── Question Fetching ──────────────────────────────────────────────────
   const fetchQuestion = useCallback(async (cat: string) => {
     setLoadingQuestion(true);
     setError('');
@@ -277,7 +268,6 @@ export default function RecordPage() {
     fetchQuestion(category);
   }, [category, fetchQuestion]);
 
-  // ── Mic Level Analyser ────────────────────────────────────────────────
   const startMicAnalyser = useCallback((stream: MediaStream) => {
     try {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -303,7 +293,6 @@ export default function RecordPage() {
     setMicLevel(0);
   }, []);
 
-  // ── Camera Setup Engine ─────────────────────────────────────────────
   const setupCamera = useCallback(async () => {
     setCameraStatus('loading');
     setError('');
@@ -338,7 +327,6 @@ export default function RecordPage() {
       return;
     }
 
-    // Canvas Fallback
     setCameraStatus('fallback');
     try {
       const canvas = document.createElement('canvas');
@@ -374,7 +362,6 @@ export default function RecordPage() {
     };
   }, [setupCamera, stopMicAnalyser, stopSpeechRecognition]);
 
-  // Polling for final session report
   useEffect(() => {
     if (!currentSession || callState !== 'processing') return;
 
@@ -398,13 +385,11 @@ export default function RecordPage() {
     return () => clearInterval(poll);
   }, [currentSession, callState, speakAIText]);
 
-  // START LIVE INTERVIEW FROM LOBBY
   const handleStartInterviewFromLobby = () => {
     setCallState('in_call');
     setLiveTranscript('');
     setCallSeconds(0);
 
-    // Start background MediaRecorder
     const stream = activeStreamRef.current;
     if (stream) {
       const mimeType = getSupportedMimeType();
@@ -422,7 +407,6 @@ export default function RecordPage() {
 
     startSpeechRecognition();
 
-    // HR Initial Face-to-Face Greeting
     const greeting = `Hello! I am ${currentProfile.name}, your HR interviewer today. Welcome to our live video call. Let's begin with your first question: ${question?.text || "Tell me about yourself and your core background."}`;
     setHrEmotion('speaking');
     speakAIText(greeting);
@@ -439,7 +423,6 @@ export default function RecordPage() {
     ]);
   };
 
-  // HANDLE CANDIDATE RESPONSE VIA GROQ API
   const handleCandidateFinishedTurn = async () => {
     setCallState('evaluating');
     stopSpeechRecognition();
@@ -478,7 +461,6 @@ export default function RecordPage() {
         const nextTurnNum = currentTurn + 1;
         setCurrentTurn(nextTurnNum);
 
-        // HR Speaks Verbal Reaction + Groq Dynamic Follow-up Question out loud!
         const fullSpeech = `${groqRes.hr_verbal_reaction} Now for my follow-up question: ${groqRes.followup_question}`;
         setHrEmotion('speaking');
         speakAIText(fullSpeech, () => {
@@ -494,7 +476,6 @@ export default function RecordPage() {
     }
   };
 
-  // End Call & Submit Session
   const handleEndCallAndSubmit = async () => {
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== 'inactive') {
@@ -577,15 +558,14 @@ export default function RecordPage() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // ── LOBBY / WAITING ROOM SCREEN ─────────────────────────────────────
   if (callState === 'lobby') {
     return (
       <div className="min-h-screen bg-slate-950 text-white font-sans flex flex-col justify-between relative overflow-hidden">
-        {/* Ambient Glows */}
+        {}
         <div className="absolute top-[-150px] left-[-150px] w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-[-150px] right-[-150px] w-[500px] h-[500px] bg-emerald-600/20 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Header */}
+        {}
         <header className="px-8 py-6 flex justify-between items-center z-10 border-b border-slate-800/80">
           <Link href="/dashboard" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-emerald-500 flex items-center justify-center font-black text-white text-lg shadow-lg">
@@ -603,10 +583,10 @@ export default function RecordPage() {
           </Link>
         </header>
 
-        {/* Main Lobby Container */}
+        {}
         <main className="max-w-6xl w-full mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center z-10">
-          
-          {/* Left Camera Preview Tile (7 Cols) */}
+
+          {}
           <div className="lg:col-span-7 flex flex-col space-y-4">
             <div className="relative aspect-video bg-slate-900 rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl">
               <video
@@ -627,7 +607,7 @@ export default function RecordPage() {
                 </div>
               )}
 
-              {/* Pre-Call Mic Meter */}
+              {}
               <div className="absolute bottom-4 left-4 right-4 bg-slate-950/80 backdrop-blur-md p-3 rounded-2xl border border-white/10 flex items-center gap-3">
                 <span className="text-xs font-bold text-slate-300">🎤 Audio Check</span>
                 <div className="flex-1 h-2.5 bg-slate-800 rounded-full overflow-hidden">
@@ -639,7 +619,7 @@ export default function RecordPage() {
               </div>
             </div>
 
-            {/* Quick Pre-Call Toggle Controls */}
+            {}
             <div className="flex justify-center gap-4">
               <button
                 onClick={() => setMicMuted(!micMuted)}
@@ -660,10 +640,10 @@ export default function RecordPage() {
             </div>
           </div>
 
-          {/* Right HR Status & Join Panel (5 Cols) */}
+          {}
           <div className="lg:col-span-5 flex flex-col space-y-6">
-            
-            {/* HR Waiting Card */}
+
+            {}
             <div className="bg-slate-900/90 border-2 border-slate-800 rounded-3xl p-6 shadow-2xl relative">
               <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-black w-fit mb-4">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -680,7 +660,7 @@ export default function RecordPage() {
                 </div>
               </div>
 
-              {/* HR Gender Switcher */}
+              {}
               <div className="bg-slate-950 p-1.5 rounded-2xl border border-slate-800 flex gap-2 mb-4">
                 <button
                   onClick={() => setHrGender('female')}
@@ -705,7 +685,7 @@ export default function RecordPage() {
               </p>
             </div>
 
-            {/* Big Join Call Action Button */}
+            {}
             <button
               onClick={handleStartInterviewFromLobby}
               disabled={loadingQuestion}
@@ -723,11 +703,10 @@ export default function RecordPage() {
     );
   }
 
-  // ── IN CALL / GOOGLE MEET STAGE ─────────────────────────────────────
   return (
     <div className="h-screen w-screen bg-slate-950 text-white font-sans flex flex-col justify-between overflow-hidden select-none">
-      
-      {/* 1. GOOGLE MEET TOP HEADER BAR */}
+
+      {}
       <header className="h-14 px-6 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 flex justify-between items-center z-20">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -761,15 +740,15 @@ export default function RecordPage() {
         </div>
       </header>
 
-      {/* 2. MAIN GOOGLE MEET DUAL VIDEO STAGE */}
+      {}
       <div className="flex-1 flex overflow-hidden relative">
-        
-        {/* Dual Video Grid View */}
+
+        {}
         <div className={`flex-1 p-4 grid gap-4 transition-all duration-300 ${
           showChat ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-8' : 'grid-cols-1 md:grid-cols-2'
         }`}>
-          
-          {/* TILE 1: AI HR INTERVIEWER TILE */}
+
+          {}
           <div className={`relative rounded-3xl overflow-hidden bg-slate-900 border-2 transition-all duration-500 flex flex-col justify-between p-6 ${
             showChat ? 'lg:col-span-4' : ''
           } ${
@@ -782,7 +761,7 @@ export default function RecordPage() {
               </div>
             </div>
 
-            {/* HR Avatar Visual Display */}
+            {}
             <div className="flex flex-col items-center justify-center my-auto">
               <div className="relative">
                 <div className={`absolute -inset-3 rounded-full transition-all duration-500 blur-xl ${
@@ -800,7 +779,7 @@ export default function RecordPage() {
                 </div>
               </div>
 
-              {/* Audio Waveform */}
+              {}
               <div className="flex items-center gap-1 mt-4 h-6">
                 {[30, 70, 50, 90, 40, 80, 60, 30].map((h, i) => (
                   <div
@@ -817,7 +796,7 @@ export default function RecordPage() {
               </div>
             </div>
 
-            {/* Subtitles Overlay */}
+            {}
             {showCaptions && (
               <div className="z-10 bg-slate-950/80 backdrop-blur-md p-3 rounded-2xl border border-slate-800 text-xs font-medium text-slate-200">
                 <span className="text-indigo-400 font-bold block text-[10px] uppercase mb-0.5">Live Closed Captions</span>
@@ -826,7 +805,7 @@ export default function RecordPage() {
             )}
           </div>
 
-          {/* TILE 2: CANDIDATE (YOU) TILE */}
+          {}
           <div className={`relative rounded-3xl overflow-hidden bg-slate-900 border-2 border-slate-800 transition-all duration-500 ${
             showChat ? 'lg:col-span-4' : ''
           }`}>
@@ -867,7 +846,7 @@ export default function RecordPage() {
           </div>
         </div>
 
-        {/* 3. LIVE CHAT SIDEBAR */}
+        {}
         {showChat && (
           <aside className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col justify-between z-20">
             <div className="p-4 border-b border-slate-800 flex justify-between items-center">
@@ -905,7 +884,7 @@ export default function RecordPage() {
         )}
       </div>
 
-      {/* 4. GOOGLE MEET FLOATING CALL DOCK TOOLBAR */}
+      {}
       <footer className="h-20 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 px-6 flex items-center justify-between z-20">
         <div className="hidden lg:flex items-center gap-3 max-w-md">
           <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />

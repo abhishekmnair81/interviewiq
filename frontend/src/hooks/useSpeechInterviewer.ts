@@ -18,7 +18,6 @@ export function useSpeechInterviewer(
   const isSpeakingRef = useRef(false);
   const speechWatchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check browser SpeechRecognition & SpeechSynthesis support
   const checkSupport = useCallback((): boolean => {
     if (typeof window === 'undefined') return false;
     const hasSpeechSynthesis = 'speechSynthesis' in window;
@@ -48,7 +47,6 @@ export function useSpeechInterviewer(
     setIsSpeaking(false);
   }, []);
 
-  // Stop listening immediately
   const stopListening = useCallback(() => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
@@ -73,7 +71,6 @@ export function useSpeechInterviewer(
     setIsListening(false);
   }, []);
 
-  // Speak method: speaks clean text with TTS watchdog fallback for 100% reliability
   const speak = useCallback(
     (text: string, onFinished?: () => void) => {
       if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -81,11 +78,9 @@ export function useSpeechInterviewer(
         return;
       }
 
-      // Always cancel anything currently playing
       cancelSpeech();
       onFinishedCallbackRef.current = onFinished || null;
 
-      // Clean stage directions like *nods*, [smiles], markdown
       const cleanedText = text
         .replace(/[\*\_~`#]/g, '')
         .replace(/\[.*?\]/g, '')
@@ -101,11 +96,9 @@ export function useSpeechInterviewer(
       isSpeakingRef.current = true;
       setIsSpeaking(true);
 
-      // Watchdog timeout calculation: ~150 wpm => ~2.5 words per sec + 3.5s margin
       const wordCount = cleanedText.split(/\s+/).length;
       const expectedMs = Math.max(3500, Math.round((wordCount / 2.5) * 1000) + 3500);
 
-      // Small delay ensures any prior cancel() has flushed
       setTimeout(() => {
         const utterance = new SpeechSynthesisUtterance(cleanedText);
         utterance.rate = 0.95;
@@ -128,7 +121,6 @@ export function useSpeechInterviewer(
           if (cb) cb();
         };
 
-        // Watchdog fallback if Chrome onend fails to fire
         speechWatchdogTimerRef.current = setTimeout(() => {
           console.warn('SpeechSynthesis watchdog triggered after fallback timeout');
           triggerFinished();
@@ -186,7 +178,6 @@ export function useSpeechInterviewer(
     [cancelSpeech]
   );
 
-  // Start listening with auto silence detection
   const startListening = useCallback(
     (
       onLiveUpdate: (text: string) => void,
@@ -195,7 +186,6 @@ export function useSpeechInterviewer(
     ) => {
       if (typeof window === 'undefined') return;
 
-      // Stop any prior session cleanly before starting
       stopListening();
 
       const SpeechRecognition =
@@ -205,7 +195,6 @@ export function useSpeechInterviewer(
         return;
       }
 
-      // Inner function so network-retry can call it again
       const doStart = () => {
         try {
           const recognition = new SpeechRecognition();
@@ -217,7 +206,7 @@ export function useSpeechInterviewer(
 
           const resetSilenceTimer = (currentText: string) => {
             if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-            // Only auto-submit when user HAS spoken and then goes silent
+
             if (currentText.trim().length >= 3) {
               silenceTimerRef.current = setTimeout(() => {
                 try {
@@ -288,7 +277,6 @@ export function useSpeechInterviewer(
         }
       };
 
-      // 250ms delay: let the TTS audio pipeline fully flush before mic opens
       networkRetryTimerRef.current = setTimeout(() => {
         networkRetryTimerRef.current = null;
         doStart();
@@ -297,7 +285,6 @@ export function useSpeechInterviewer(
     [stopListening]
   );
 
-  // Clean up on unmount
   useEffect(() => {
     return () => {
       stopListening();
