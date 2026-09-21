@@ -61,6 +61,45 @@ class AnalysisReportViewSet(viewsets.ReadOnlyModelViewSet):
         if len(report.transcript or '') > 500:
             transcript_preview += '...'
 
+        def compute_verdict(level_adjusted_score, level, red_flags):
+            if red_flags:
+                return "Reject — red flags detected"
+            if level in ['senior', 'staff', 'principal']:
+                if level_adjusted_score >= 80: return "Strong Hire"
+                elif level_adjusted_score >= 65: return "Hire"
+                elif level_adjusted_score >= 50: return "Borderline — would need 2nd round"
+                else: return "Reject"
+            elif level == 'mid':
+                if level_adjusted_score >= 75: return "Strong Hire"
+                elif level_adjusted_score >= 60: return "Hire"
+                elif level_adjusted_score >= 45: return "Borderline"
+                else: return "Reject"
+            else:
+                if level_adjusted_score >= 70: return "Strong Hire"
+                elif level_adjusted_score >= 55: return "Hire"
+                elif level_adjusted_score >= 40: return "Borderline — coachable"
+                else: return "Reject"
+
+        level = report.candidate_level or 'mid'
+        level_score = report.level_adjusted_overall or report.overall_score
+        verdict = report.verdict or compute_verdict(level_score, level, report.red_flags)
+        
+        # Save verdict back if not set
+        if not report.verdict:
+            report.verdict = verdict
+            report.save(update_fields=['verdict'])
+
+        red_flags_text = '\n'.join(f'  - {flag}' for flag in (report.red_flags or [])) or '  None detected'
+        green_flags_text = '\n'.join(f'  - {flag}' for flag in (report.green_flags or [])) or '  None detected'
+        
+        evidence_text = []
+        if isinstance(report.evidence_quotes, dict):
+            for dim, data in report.evidence_quotes.items():
+                score = data.get('score', 0)
+                evidence = data.get('evidence', 'no evidence')
+                evidence_text.append(f"  - {dim.title()} ({score}/100): \"{evidence}\"")
+        evidence_str = '\n'.join(evidence_text) or '  No evidence quotes available.'
+
         content = textwrap.dedent(f"""
         ╔══════════════════════════════════════════════════════════════════╗
         ║              InterviewIQ — AI Interview Analysis Report          ║
@@ -74,10 +113,18 @@ class AnalysisReportViewSet(viewsets.ReadOnlyModelViewSet):
         Question  : {session.question[:120]}
 
         ──────────────────────────────────────────────────────────────────
+        HIRING VERDICT (STRICT MODE)
+        ──────────────────────────────────────────────────────────────────
+        Detected Level : {level.upper()} (Confidence: {report.level_confidence}%)
+        Verdict        : {verdict.upper()}
+
+        Overall Score  : {report.overall_score or 0:.1f} / 100  {score_bar(report.overall_score or 0)}
+        Level Adjusted : {level_score or 0:.1f} / 100  {score_bar(level_score or 0)}
+
+        ──────────────────────────────────────────────────────────────────
         SCORE SUMMARY
         ──────────────────────────────────────────────────────────────────
 
-        Overall Score  : {report.overall_score or 0:.1f} / 100  {score_bar(report.overall_score or 0)}
         Answer Quality : {report.answer_score or 0:.1f} / 100  {score_bar(report.answer_score or 0)}
         Speech Delivery: {report.speech_score or 0:.1f} / 100  {score_bar(report.speech_score or 0)}
         Facial Presence: {report.face_score or 0:.1f} / 100  {score_bar(report.face_score or 0)}
@@ -98,6 +145,19 @@ class AnalysisReportViewSet(viewsets.ReadOnlyModelViewSet):
           Relevance Score           : {relevance}
           STAR Structure Score      : {star_score}
           Confidence / Clarity      : {confidence}
+
+        ──────────────────────────────────────────────────────────────────
+        EVIDENCE & FLAGS
+        ──────────────────────────────────────────────────────────────────
+        
+        Red Flags:
+        {red_flags_text}
+        
+        Green Flags:
+        {green_flags_text}
+        
+        Evidence Quotes by Dimension:
+        {evidence_str}
 
         ──────────────────────────────────────────────────────────────────
         CROSS-MODAL CONTRADICTIONS

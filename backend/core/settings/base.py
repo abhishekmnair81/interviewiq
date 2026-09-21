@@ -7,6 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = config('DJANGO_SECRET_KEY')
 DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('DJANGO_ALLOWED_HOSTS', default='localhost', cast=Csv())
+USE_SQLITE = config('USE_SQLITE', default=True, cast=bool)
 
 DJANGO_APPS = [
     'daphne',
@@ -41,11 +42,21 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 ASGI_APPLICATION = 'core.asgi.application'
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
-    },
-}
+if USE_SQLITE:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [config('REDIS_URL', default='redis://redis:6379/1')],
+            },
+        },
+    }
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -79,8 +90,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
-
-USE_SQLITE = config('USE_SQLITE', default=True, cast=bool)
 
 if USE_SQLITE or not config('POSTGRES_DB', default=''):
     DATABASES = {
@@ -194,8 +203,9 @@ SPECTACULAR_SETTINGS = {
 }
 
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='memory://')
-if USE_SQLITE or 'redis' in CELERY_BROKER_URL:
+if USE_SQLITE:
     CELERY_BROKER_URL = 'memory://'
+    CELERY_RESULT_BACKEND = 'django-db'
 CELERY_RESULT_BACKEND = 'django-db'
 CELERY_CACHE_BACKEND = 'django-cache'
 CELERY_TIMEZONE = config('CELERY_TIMEZONE', default='UTC')
@@ -279,3 +289,34 @@ LOGGING = {
         },
     },
 }
+
+# LLM Providers Configuration
+NVIDIA_API_KEY = config('NVIDIA_API_KEY', default='')
+NVIDIA_BASE_URL = config('NVIDIA_BASE_URL', default='https://integrate.api.nvidia.com/v1')
+NVIDIA_MODEL = config('NVIDIA_MODEL', default='meta/llama-3.3-70b-instruct')
+
+# Qwen2.5-Omni Configuration
+QWEN_API_KEY = config('DASHSCOPE_API_KEY', default='')
+QWEN_BASE_URL = config('QWEN_BASE_URL', default='')
+QWEN_OMNI_MODEL = config('QWEN_OMNI_MODEL', default='qwen2.5-omni-7b')
+QWEN_VOICE = config('QWEN_VOICE', default='Chelsie')
+
+DEFAULT_LLM_PROVIDER = config('DEFAULT_LLM_PROVIDER', default='groq')
+
+LLM_PROVIDERS = {
+    'groq': {
+        'API_KEY': config('GROQ_API_KEY', default=''),
+        'MODEL': 'llama-3.3-70b-versatile',
+        'BASE_URL': 'https://api.groq.com/openai/v1',
+    },
+    'nvidia': {
+        'API_KEY': NVIDIA_API_KEY,
+        'MODEL': NVIDIA_MODEL,
+        'BASE_URL': NVIDIA_BASE_URL,
+    }
+}
+
+# Strict Evaluation Settings
+STRICT_EVALUATION = config('STRICT_EVALUATION', default=True, cast=bool)
+INFLATION_GUARD = config('INFLATION_GUARD', default=True, cast=bool)
+EVIDENCE_VERIFICATION = config('EVIDENCE_VERIFICATION', default=True, cast=bool)

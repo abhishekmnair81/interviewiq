@@ -85,6 +85,22 @@ class InterviewSession(models.Model):
     job_role = models.CharField(max_length=100, default='Software Engineer', blank=True)
     difficulty = models.CharField(max_length=20, default='medium', blank=True)
 
+    interview_phase = models.CharField(
+        max_length=20,
+        choices=[
+            ('intro', 'Introduction'),
+            ('behavioral', 'Behavioral'),
+            ('technical', 'Technical'),
+            ('situational', 'Situational'),
+            ('closing', 'Closing'),
+        ],
+        default='intro',
+    )
+    questions_asked_count = models.PositiveIntegerField(default=0)
+    topics_covered = models.JSONField(default=list, blank=True)
+    candidate_strengths = models.JSONField(default=list, blank=True)
+    candidate_weaknesses = models.JSONField(default=list, blank=True)
+
     status = models.CharField(
         max_length=20,
         choices=Status.choices,

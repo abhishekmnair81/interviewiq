@@ -8,7 +8,7 @@ import { useSpeechInterviewer } from '@/hooks/useSpeechInterviewer';
 import { useFaceTracking } from '@/hooks/useFaceTracking';
 import { useInterviewSocket, FaceReading } from '@/hooks/useInterviewSocket';
 import { useStarAnalyzer } from '@/hooks/useStarAnalyzer';
-import { Alex3DRealCharacter } from '@/components/Alex3DRealCharacter';
+import { AlexImageCharacter } from '@/components/AlexImageCharacter';
 
 type AppState = 'SETUP' | 'CONNECTING' | 'ALEX_SPEAKING' | 'USER_TURN' | 'PROCESSING' | 'COMPLETE';
 type AvatarState = 'idle' | 'speaking' | 'thinking' | 'listening';
@@ -609,7 +609,7 @@ export default function LiveInterviewPage() {
             </div>
 
             <div className="relative flex-1 my-4 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 min-h-[260px] flex items-center justify-center">
-              <Alex3DRealCharacter state={avatarState} alexText={alexText} candidateName={candidateName} jobRole={jobRole} />
+              <AlexImageCharacter state={avatarState} alexText={alexText} candidateName={candidateName} jobRole={jobRole} />
             </div>
 
             <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-sm z-10">

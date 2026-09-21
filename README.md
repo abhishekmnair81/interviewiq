@@ -93,7 +93,7 @@ graph TD
 | **Task Queue & Cache** | Celery 5.3, Redis 7 |
 | **Database & Storage** | PostgreSQL 15, AWS S3 / Local Media Storage |
 | **Reverse Proxy & Containers** | Nginx 1.25, Docker, Docker Compose |
-| **AI Ingestion** | Google Generative AI (Gemini), Groq API, OpenAI API |
+| **AI Ingestion** | Google Generative AI (Gemini), Groq API, OpenAI API, NVIDIA NIM |
 
 ---
 
@@ -167,9 +167,27 @@ CELERY_RESULT_BACKEND=redis://:your-redis-password@redis:6379/1
 GROQ_API_KEY=your-groq-api-key
 GEMINI_API_KEY=your-gemini-api-key
 
+# NVIDIA NIM API
+NVIDIA_API_KEY=your-nvidia-api-key-here
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+NVIDIA_MODEL=meta/llama-3.3-70b-instruct
+DEFAULT_LLM_PROVIDER=groq
+
 # Frontend Configuration
 NEXT_PUBLIC_API_URL=http://localhost/api
 ```
+
+### Switching LLM Providers
+
+InterviewIQ allows you to seamlessly switch between different LLM providers for the conversational AI interviewer using the `DEFAULT_LLM_PROVIDER` environment variable.
+Currently supported providers:
+- `groq` (Default)
+- `nvidia` (NVIDIA NIM)
+- `qwen_omni` (Qwen2.5-Omni via Alibaba Cloud DashScope)
+
+To use NVIDIA NIM, set `DEFAULT_LLM_PROVIDER=nvidia` and provide your `NVIDIA_API_KEY` (starting with `nvapi-`).
+
+To use Qwen2.5-Omni, set `DEFAULT_LLM_PROVIDER=qwen_omni`, provide your `DASHSCOPE_API_KEY`, and construct your `QWEN_BASE_URL` using your Alibaba Cloud Workspace ID (e.g. `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`). Make sure your API key region (e.g., ap-southeast-1 for Singapore) matches the endpoint. You can also configure the voice character using `QWEN_VOICE`.
 
 ---
 

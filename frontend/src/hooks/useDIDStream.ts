@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const rawUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const BACKEND_BASE = rawUrl.replace(/\/api\/?$/, '');
 
 export type StreamStatus = 'idle' | 'connecting' | 'connected' | 'error' | 'unsupported';
 
@@ -25,7 +26,7 @@ export function useDIDStream(): UseDIDStreamReturn {
   const [error, setError] = useState<string | null>(null);
 
   const api = useCallback(async (path: string, body: object, method = 'POST') => {
-    const res = await fetch(`${BACKEND}/api/analysis${path}`, {
+    const res = await fetch(`${BACKEND_BASE}/api/analysis${path}`, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -49,12 +50,11 @@ export function useDIDStream(): UseDIDStreamReturn {
     setError(null);
 
     try {
-
       const streamData = await api('/avatar/stream/', {});
 
       if (streamData.code === 'NO_API_KEY') {
         setStatus('error');
-        setError('D-ID API key not configured. See setup instructions below.');
+        setError('D-ID API key not configured. Switched to Interactive 3D Avatar.');
         return;
       }
 
@@ -68,6 +68,7 @@ export function useDIDStream(): UseDIDStreamReturn {
       pc.ontrack = (event) => {
         if (videoRef.current && event.streams?.[0]) {
           videoRef.current.srcObject = event.streams[0];
+          videoRef.current.play().catch(() => {});
           setStatus('connected');
         }
       };
@@ -100,7 +101,7 @@ export function useDIDStream(): UseDIDStreamReturn {
         if (state === 'connected') setStatus('connected');
         if (state === 'failed' || state === 'disconnected') {
           setStatus('error');
-          setError('WebRTC connection lost. Reconnecting...');
+          setError('WebRTC video stream disconnected.');
         }
       };
 
@@ -113,7 +114,7 @@ export function useDIDStream(): UseDIDStreamReturn {
 
   const speak = useCallback(async (text: string) => {
     if (!streamIdRef.current || !sessionIdRef.current) {
-      console.warn('D-ID stream not ready — falling back to browser TTS');
+      console.warn('D-ID stream not ready — fallback to audio TTS');
       return;
     }
     try {
@@ -129,7 +130,6 @@ export function useDIDStream(): UseDIDStreamReturn {
 
   const disconnect = useCallback(() => {
     if (streamIdRef.current && sessionIdRef.current) {
-
       api(`/avatar/stream/${streamIdRef.current}/close/`, {
         session_id: sessionIdRef.current,
       }, 'DELETE').catch(() => {});
@@ -145,5 +145,5 @@ export function useDIDStream(): UseDIDStreamReturn {
     return () => { disconnect(); };
   }, [disconnect]);
 
-  return { videoRef, status, error, speak, connect, disconnect };
+  return useMemo(() => ({ videoRef, status, error, speak, connect, disconnect }), [status, error, speak, connect, disconnect]);
 }

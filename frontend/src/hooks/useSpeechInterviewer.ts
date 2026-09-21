@@ -2,21 +2,31 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+
+export type VoiceMode = 'neural' | 'browser';
+
 export function useSpeechInterviewer(
   onUtteranceCreated?: (utt: SpeechSynthesisUtterance) => void
 ) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>('neural');
+  const [audioLevel, setAudioLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const recognitionRef = useRef<any>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const networkRetryRef = useRef(0);
   const networkRetryTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const speechQueueRef = useRef<string[]>([]);
   const onFinishedCallbackRef = useRef<(() => void) | null>(null);
   const isSpeakingRef = useRef(false);
   const speechWatchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const bufferSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
 
   const checkSupport = useCallback((): boolean => {
     if (typeof window === 'undefined') return false;
@@ -32,19 +42,75 @@ export function useSpeechInterviewer(
     return true;
   }, []);
 
+  const getAudioContext = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+    if (!audioContextRef.current) {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        audioContextRef.current = new AudioCtx();
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 128;
+        analyserRef.current.smoothingTimeConstant = 0.8;
+      }
+    }
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume().catch(() => {});
+    }
+    return { ctx: audioContextRef.current, analyser: analyserRef.current };
+  }, []);
+
+  const startLevelMeter = useCallback(() => {
+    const analyser = analyserRef.current;
+    if (!analyser) return;
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const update = () => {
+      if (!isSpeakingRef.current) {
+        setAudioLevel(0);
+        return;
+      }
+      analyser.getByteFrequencyData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      const avg = sum / dataArray.length;
+      const normalized = Math.min(100, Math.round((avg / 128) * 100));
+      setAudioLevel(normalized);
+      animFrameRef.current = requestAnimationFrame(update);
+    };
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    animFrameRef.current = requestAnimationFrame(update);
+  }, []);
+
   const cancelSpeech = useCallback(() => {
     if (speechWatchdogTimerRef.current) {
       clearTimeout(speechWatchdogTimerRef.current);
       speechWatchdogTimerRef.current = null;
     }
+
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+
+    if (bufferSourceRef.current) {
+      try {
+        bufferSourceRef.current.stop();
+        bufferSourceRef.current.disconnect();
+      } catch {}
+      bufferSourceRef.current = null;
+    }
+
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
       } catch {}
     }
-    speechQueueRef.current = [];
+
     isSpeakingRef.current = false;
     setIsSpeaking(false);
+    setAudioLevel(0);
   }, []);
 
   const stopListening = useCallback(() => {
@@ -71,24 +137,9 @@ export function useSpeechInterviewer(
     setIsListening(false);
   }, []);
 
-  const speak = useCallback(
-    (text: string, onFinished?: () => void) => {
+  const speakWithBrowserTTS = useCallback(
+    (cleanedText: string, onFinished?: () => void) => {
       if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-        if (onFinished) onFinished();
-        return;
-      }
-
-      cancelSpeech();
-      onFinishedCallbackRef.current = onFinished || null;
-
-      const cleanedText = text
-        .replace(/[\*\_~`#]/g, '')
-        .replace(/\[.*?\]/g, '')
-        .replace(/\(.*?\)/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      if (!cleanedText) {
         if (onFinished) onFinished();
         return;
       }
@@ -101,7 +152,7 @@ export function useSpeechInterviewer(
 
       setTimeout(() => {
         const utterance = new SpeechSynthesisUtterance(cleanedText);
-        utterance.rate = 0.95;
+        utterance.rate = 0.96;
         utterance.pitch = 1.0;
         utterance.volume = 1.0;
         utterance.lang = 'en-US';
@@ -116,13 +167,13 @@ export function useSpeechInterviewer(
           }
           isSpeakingRef.current = false;
           setIsSpeaking(false);
+          setAudioLevel(0);
           const cb = onFinishedCallbackRef.current;
           onFinishedCallbackRef.current = null;
           if (cb) cb();
         };
 
         speechWatchdogTimerRef.current = setTimeout(() => {
-          console.warn('SpeechSynthesis watchdog triggered after fallback timeout');
           triggerFinished();
         }, expectedMs);
 
@@ -144,7 +195,6 @@ export function useSpeechInterviewer(
           };
 
           utterance.onerror = (e) => {
-            console.warn('Speech synthesis error:', e.error);
             if (e.error !== 'interrupted' && e.error !== 'canceled') {
               triggerFinished();
             }
@@ -173,9 +223,85 @@ export function useSpeechInterviewer(
         } else {
           trySpeak();
         }
-      }, 80);
+      }, 50);
     },
-    [cancelSpeech]
+    [onUtteranceCreated]
+  );
+
+  const speak = useCallback(
+    async (text: string, onFinished?: () => void, overrideMode?: VoiceMode) => {
+      cancelSpeech();
+      onFinishedCallbackRef.current = onFinished || null;
+
+      const cleanedText = text
+        .replace(/[\*\_~`#]/g, '')
+        .replace(/\[.*?\]/g, '')
+        .replace(/\(.*?\)/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (!cleanedText) {
+        if (onFinished) onFinished();
+        return;
+      }
+
+      const activeMode = overrideMode || voiceMode;
+
+      if (activeMode === 'neural') {
+        try {
+          isSpeakingRef.current = true;
+          setIsSpeaking(true);
+
+          const audioState = getAudioContext();
+          const endpoint = `${API_BASE_URL}/analysis/tts/speak/`;
+
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: cleanedText, voice: 'en-US-GuyNeural' }),
+          });
+
+          if (!res.ok) {
+            throw new Error(`TTS server responded with ${res.status}`);
+          }
+
+          const arrayBuffer = await res.arrayBuffer();
+
+          if (!audioState?.ctx || !audioState?.analyser) {
+             throw new Error("AudioContext not initialized");
+          }
+
+          const audioBuffer = await audioState.ctx.decodeAudioData(arrayBuffer);
+          const source = audioState.ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioState.analyser);
+          audioState.analyser.connect(audioState.ctx.destination);
+          
+          bufferSourceRef.current = source;
+
+          source.onended = () => {
+            isSpeakingRef.current = false;
+            setIsSpeaking(false);
+            setAudioLevel(0);
+            bufferSourceRef.current = null;
+            const cb = onFinishedCallbackRef.current;
+            onFinishedCallbackRef.current = null;
+            if (cb) cb();
+          };
+
+          source.start(0);
+          startLevelMeter();
+          return;
+        } catch (err) {
+          console.warn('Neural TTS request error, falling back to browser voice:', err);
+          speakWithBrowserTTS(cleanedText, onFinished);
+          return;
+        }
+      }
+
+      speakWithBrowserTTS(cleanedText, onFinished);
+    },
+    [cancelSpeech, voiceMode, getAudioContext, startLevelMeter, speakWithBrowserTTS]
   );
 
   const startListening = useCallback(
@@ -289,12 +415,20 @@ export function useSpeechInterviewer(
     return () => {
       stopListening();
       cancelSpeech();
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
+      }
     };
   }, [stopListening, cancelSpeech]);
 
   return {
     isSpeaking,
     isListening,
+    voiceMode,
+    setVoiceMode,
+    audioLevel,
+    analyser: analyserRef.current,
     error,
     speak,
     cancelSpeech,
@@ -306,4 +440,3 @@ export function useSpeechInterviewer(
       ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window),
   };
 }
-

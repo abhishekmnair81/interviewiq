@@ -29,6 +29,15 @@ const config: Config = {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      keyframes: {
+        breathe: {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.02)' },
+        }
+      },
+      animation: {
+        breathe: 'breathe 4s ease-in-out infinite',
+      },
     },
   },
   plugins: [forms, typography],

@@ -11,6 +11,7 @@ export interface SocketMessage {
   type: string;
   text?: string;
   is_complete?: boolean;
+  expression?: string;
   exchange_count?: number;
   message?: string;
   session_id?: string;
@@ -21,7 +22,7 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'er
 interface UseInterviewSocketOptions {
   sessionId?: string | null;
   token?: string | null;
-  onAlexSpeaks?: (text: string, isComplete: boolean) => void;
+  onAlexSpeaks?: (text: string, isComplete: boolean, expression?: string) => void;
   onError?: (message: string) => void;
 }
 
@@ -35,7 +36,7 @@ export function useInterviewSocket(optionsOrSessionId?: string | null | UseInter
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectCountRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const alexSpeaksCallbackRef = useRef<((text: string, isComplete: boolean) => void) | null>(
+  const alexSpeaksCallbackRef = useRef<((text: string, isComplete: boolean, expression?: string) => void) | null>(
     isObject && (optionsOrSessionId as UseInterviewSocketOptions).onAlexSpeaks ? (optionsOrSessionId as UseInterviewSocketOptions).onAlexSpeaks! : null
   );
   const errorCallbackRef = useRef<((message: string) => void) | null>(
@@ -91,7 +92,7 @@ export function useInterviewSocket(optionsOrSessionId?: string | null | UseInter
 
           if (data.type === 'alex_speaking' && data.text) {
             if (alexSpeaksCallbackRef.current) {
-              alexSpeaksCallbackRef.current(data.text, !!data.is_complete);
+              alexSpeaksCallbackRef.current(data.text, !!data.is_complete, data.expression);
             }
           } else if (data.type === 'error' && data.message) {
             if (errorCallbackRef.current) {

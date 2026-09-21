@@ -1,4 +1,8 @@
 import json
+import asyncio
+import base64
+import os
+import httpx
 import logging
 import uuid
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
@@ -6,16 +10,18 @@ from channels.db import database_sync_to_async
 from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth import get_user_model
 from apps.sessions.models import InterviewSession
-from apps.analysis.groq_service import AlexInterviewer
+from apps.analysis.services.question_generator import InterviewQuestionGenerator
+from apps.analysis.services.answer_evaluator import StrictAnswerEvaluator
+from apps.analysis.services.level_detector import CandidateLevelDetector
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 class InterviewConsumer(AsyncJsonWebsocketConsumer):
     """
-    WebSocket consumer for Alex — Live Conversational AI Interviewer using Groq.
-    Handles user authentication, small talk openings, dynamic turn responses,
-    real-time face reading metrics, and automated post-interview report generation.
+    WebSocket consumer for Alex — Live Conversational AI Interviewer.
+    Uses InterviewQuestionGenerator for dynamic questions based on context,
+    and AnswerEvaluator to assess user answers.
     """
 
     async def connect(self):
@@ -38,33 +44,9 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4001)
             return
 
-        user_field = getattr(self.user, 'professional_field', 'Software Engineer') or 'Software Engineer'
-        job_role = getattr(self.session, 'job_role', None) or user_field
-        category = getattr(self.session, 'question_category', 'behavioral') or 'behavioral'
-        difficulty = getattr(self.session, 'difficulty', 'medium') or 'medium'
-
-        self.interviewer = AlexInterviewer(
-            job_role=job_role,
-            category=category,
-            difficulty=difficulty,
-            user=self.user,
-            session=self.session,
-        )
-
-        if self.session.conversation_history:
-            self.interviewer.conversation_history = self.session.conversation_history
-            assistant_turns = [m for m in self.session.conversation_history if m.get('role') == 'assistant']
-            self.interviewer.exchange_count = len(assistant_turns)
-
-            total_q = len(self.interviewer.selected_questions)
-            restored_idx = max(0, len(assistant_turns) - 1)  
-            self.interviewer.current_question_index = min(restored_idx, total_q)
-            logger.info(
-                "Session restored: exchange_count=%d, agenda_idx=%d/%d",
-                self.interviewer.exchange_count,
-                self.interviewer.current_question_index,
-                total_q,
-            )
+        self.generator = InterviewQuestionGenerator()
+        self.evaluator = StrictAnswerEvaluator()
+        self.level_detector = CandidateLevelDetector()
 
     @database_sync_to_async
     def authenticate_user(self, token_str):
@@ -111,13 +93,6 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
             return None
 
     @database_sync_to_async
-    def save_session_state(self):
-        if self.session:
-            self.session.conversation_history = self.interviewer.conversation_history
-            self.session.interview_mode = "live"
-            self.session.save(update_fields=['conversation_history', 'interview_mode', 'updated_at'])
-
-    @database_sync_to_async
     def append_face_reading(self, data):
         if self.session:
             readings = self.session.live_face_readings or []
@@ -129,14 +104,17 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
         msg_type = content.get('type') or content.get('action')
 
         if msg_type in ['user_ready', 'start']:
-            opening_text = await database_sync_to_async(self.interviewer.get_opening)()
-            await self.save_session_state()
-
+            question = await database_sync_to_async(self.generator.generate_next_question)(
+                session=self.session
+            )
+            await self._save_question(question)
+            
             await self.send_json({
                 'type': 'alex_speaking',
-                'text': opening_text,
+                'text': question,
                 'is_complete': False,
-                'exchange_count': 0
+                'exchange_count': self.session.questions_asked_count,
+                'expression': 'encouraging',
             })
 
         elif msg_type in ['user_spoke', 'answer']:
@@ -149,34 +127,142 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
                 })
                 return
 
-            res = await database_sync_to_async(self.interviewer.respond)(transcript)
-            await self.save_session_state()
+            # 1. Save answer
+            await self._save_answer(transcript)
 
+            # 2. Detect Level
+            level_data = await database_sync_to_async(self.level_detector.detect)(self.session)
+            candidate_level = level_data.get('level', 'mid')
+
+            # 3. Get last question
+            history = self.session.conversation_history or []
+            last_q = "Please tell me more."
+            for msg in reversed(history):
+                if msg.get('role') == 'assistant' and msg.get('content') != transcript:
+                    last_q = msg.get('content')
+                    break
+
+            # 4. Evaluate answer strictly
+            evaluation = await database_sync_to_async(self.evaluator.evaluate)(
+                session=self.session,
+                question=last_q,
+                answer=transcript,
+                level=candidate_level
+            )
+            await self._update_session_metadata(evaluation)
+
+            # 3. Check if interview is over (10 questions)
+            is_done = self.session.questions_asked_count >= 10
+
+            if is_done:
+                # 4a. Generate closing remark and finish
+                next_question = "Thank you so much for your time today. I have all the information I need. I'm compiling your interview report now!"
+                emotion = 'impressed'
+                await self.trigger_session_analysis()
+            else:
+                # 4b. Generate next question
+                try:
+                    next_question = await database_sync_to_async(self.generator.generate_next_question)(
+                        session=self.session,
+                        last_answer=transcript
+                    )
+                except Exception as e:
+                    logger.warning(f"LLM generation failed: {e}. Falling back to QuestionBank.")
+                    next_question = await database_sync_to_async(self._pick_from_question_bank)()
+
+                await self._save_question(next_question)
+                emotion = self._pick_emotion(evaluation)
+
+            # 5. Send output
             await self.send_json({
                 'type': 'alex_speaking',
-                'text': res['text'],
-                'is_complete': res['is_complete'],
-                'exchange_count': self.interviewer.exchange_count
+                'text': next_question,
+                'is_complete': is_done,
+                'expression': emotion,
+                'exchange_count': self.session.questions_asked_count
             })
-
-            if res['is_complete']:
-                await self.trigger_session_analysis()
 
         elif msg_type in ['face_reading', 'facial_metrics']:
             face_data = content.get('data') or content.get('metrics') or content
             await self.append_face_reading(face_data)
 
         elif msg_type in ['end_session', 'finish']:
-            self.interviewer.is_complete = True
-            await self.save_session_state()
             await self.trigger_session_analysis()
-
             await self.send_json({
                 'type': 'alex_speaking',
                 'text': "It was really great talking with you today! I'm compiling your interview report now...",
                 'is_complete': True,
-                'exchange_count': self.interviewer.exchange_count
+                'exchange_count': self.session.questions_asked_count
             })
+
+    def _pick_emotion(self, evaluation):
+        score = evaluation.get('score', 0)
+        if score >= 85:
+            return 'impressed'
+        elif score >= 70:
+            return 'encouraging'
+        elif score >= 50:
+            return 'thinking'
+        else:
+            return 'curious'
+
+    @database_sync_to_async
+    def _save_question(self, question_text):
+        history = self.session.conversation_history or []
+        history.append({"role": "assistant", "content": question_text})
+        self.session.conversation_history = history
+        self.session.questions_asked_count += 1
+        self._advance_phase(self.session)
+        self.session.save(update_fields=['conversation_history', 'questions_asked_count', 'interview_phase', 'updated_at'])
+
+    @database_sync_to_async
+    def _save_answer(self, answer_text):
+        history = self.session.conversation_history or []
+        history.append({"role": "user", "content": answer_text})
+        self.session.conversation_history = history
+        self.session.save(update_fields=['conversation_history', 'updated_at'])
+
+    @database_sync_to_async
+    def _update_session_metadata(self, evaluation):
+        topics = self.session.topics_covered or []
+        for t in evaluation.get("topics", []):
+            if t not in topics:
+                topics.append(t)
+        self.session.topics_covered = topics
+
+        strengths = self.session.candidate_strengths or []
+        for s in evaluation.get("strengths", []):
+            if s not in strengths:
+                strengths.append(s)
+        self.session.candidate_strengths = strengths
+
+        weaknesses = self.session.candidate_weaknesses or []
+        for w in evaluation.get("weaknesses", []):
+            if w not in weaknesses:
+                weaknesses.append(w)
+        self.session.candidate_weaknesses = weaknesses
+
+        self.session.save(update_fields=['topics_covered', 'candidate_strengths', 'candidate_weaknesses', 'updated_at'])
+
+    def _advance_phase(self, session):
+        count = session.questions_asked_count
+        if count < 2:
+            session.interview_phase = 'intro'
+        elif count < 5:
+            session.interview_phase = 'behavioral'
+        elif count < 8:
+            session.interview_phase = 'technical'
+        elif count < 10:
+            session.interview_phase = 'situational'
+        else:
+            session.interview_phase = 'closing'
+
+    def _pick_from_question_bank(self):
+        # Fallback to a static question from the database
+        qb = QuestionBank.objects.filter(is_active=True).order_by('?').first()
+        if qb:
+            return qb.text
+        return "Could you tell me more about your previous experience?"
 
     async def trigger_session_analysis(self):
         await database_sync_to_async(self.run_analysis_pipeline)()
@@ -190,4 +276,50 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
 
     async def disconnect(self, close_code):
         logger.info(f"WebSocket closed for session {self.session_id} with code {close_code}")
-        await self.save_session_state()
+
+    async def _stream_elevenlabs(self, text, voice_id, api_key, expression):
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
+        headers = {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": api_key
+        }
+        payload = {
+            "text": text,
+            "model_id": "eleven_flash_v2_5",
+            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
+        }
+        
+        await self.send_json({
+            'type': 'alex_speaking',
+            'text': text,
+            'is_complete': False,
+            'expression': expression,
+            'exchange_count': self.session.questions_asked_count
+        })
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                async with client.stream('POST', url, json=payload, headers=headers) as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes(chunk_size=4096):
+                        if chunk:
+                            await self.send_json({
+                                'type': 'alex_speaking',
+                                'audio_chunk': base64.b64encode(chunk).decode('utf-8'),
+                                'text': '', 
+                                'is_complete': False,
+                                'expression': expression,
+                                'exchange_count': self.session.questions_asked_count
+                            })
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"ElevenLabs TTS error: {e}")
+                
+        await self.send_json({
+            'type': 'alex_speaking',
+            'text': '',
+            'is_complete': True,
+            'expression': expression,
+            'exchange_count': self.session.questions_asked_count
+        })

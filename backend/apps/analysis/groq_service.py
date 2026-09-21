@@ -81,8 +81,9 @@ STRICT RULES — follow every one of them, every turn:
 2. ONE QUESTION ONLY: Ask exactly one question per response. Never ask two questions.
 3. SHORT RESPONSES: Maximum 2 sentences. First sentence validates the candidate's answer. Second sentence is your next question.
 4. NO STAGE DIRECTIONS: Do not include *nods*, [pauses], (laughs) or any action markers.
-5. FOLLOW THE DIRECTOR: The system message contains a [DIRECTOR] instruction telling you exactly which question to ask. Follow it precisely — do not invent or repeat questions.
-6. CLOSING: When [DIRECTOR] says WRAP UP, thank the candidate warmly, say INTERVIEW_COMPLETE, and close professionally.
+5. FACIAL EXPRESSIONS: You MUST start every response with an expression tag: [EXPRESSION: neutral], [EXPRESSION: encouraging], or [EXPRESSION: skeptical]. Use "encouraging" for good answers, "skeptical" for vague/bad answers, and "neutral" otherwise.
+6. FOLLOW THE DIRECTOR: The system message contains a [DIRECTOR] instruction telling you exactly which question to ask. Follow it precisely — do not invent or repeat questions.
+7. CLOSING: When [DIRECTOR] says WRAP UP, thank the candidate warmly, say INTERVIEW_COMPLETE, and close professionally.
 
 INTERVIEW CONTEXT:
 - Role: {job_role}
@@ -108,7 +109,7 @@ class AlexInterviewer:
         self.question_count = question_count
 
         import httpx
-        api_key = os.environ.get("GROQ_API_KEY", "")
+        api_key = os.environ.get("GROQ_API_KEY", "dummy_key_for_inheritance")
         base_url = "https://api.groq.com/openai/v1"
 
         self.client = OpenAI(
@@ -359,6 +360,14 @@ class AlexInterviewer:
 
         response_text = self._clean_text(response_text)
         is_ending = "INTERVIEW_COMPLETE" in response_text or "INTERVIEW COMPLETE" in response_text
+        
+        # Parse expression tag
+        expression = 'neutral'
+        import re
+        exp_match = re.search(r'\[EXPRESSION:\s*([a-zA-Z]+)\]', response_text)
+        if exp_match:
+            expression = exp_match.group(1).lower()
+            response_text = re.sub(r'\[EXPRESSION:\s*[a-zA-Z]+\]', '', response_text)
 
         if is_ending or all_done:
             self.is_complete = True

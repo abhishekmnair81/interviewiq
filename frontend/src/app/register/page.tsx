@@ -176,7 +176,7 @@ export default function RegisterPage() {
         {step === 'field' && (
           <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-sm shadow-2xl">
             <div className="text-center mb-8">
-              <h2 className="text-xl font-bold text-white">What's your professional field?</h2>
+              <h2 className="text-xl font-bold text-white">What&apos;s your professional field?</h2>
               <p className="text-slate-400 text-sm mt-2">
                 Your interviews will be personalised based on your career domain
               </p>

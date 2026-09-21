@@ -136,26 +136,41 @@ def analyze_session(self, session_id: str) -> str:
             )
 
             llm_tips = []
+            strict_eval = {}
+            candidate_level = 'mid'
+            level_confidence = 0
+
             if is_live and session.conversation_history:
                 try:
-                    from apps.analysis.groq_service import AlexInterviewer
-                    interviewer_engine = AlexInterviewer(
-                        job_role=getattr(session, 'job_role', 'Software Engineer') or 'Software Engineer',
-                        difficulty=getattr(session, 'difficulty', 'medium') or 'medium',
-                        category=getattr(session, 'question_category', 'behavioral') or 'behavioral'
+                    from apps.analysis.services.level_detector import CandidateLevelDetector
+                    from apps.analysis.services.answer_evaluator import StrictAnswerEvaluator
+
+                    level_data = CandidateLevelDetector().detect(session)
+                    candidate_level = level_data.get('level', 'mid')
+                    level_confidence = level_data.get('confidence', 0)
+
+                    strict_eval = StrictAnswerEvaluator().evaluate(
+                        session=session,
+                        question=question_context,
+                        answer=full_transcript,
+                        level=candidate_level
                     )
-                    interviewer_engine.conversation_history = session.conversation_history or []
-                    llm_eval = interviewer_engine.analyze_full_conversation()
-                    if llm_eval and isinstance(llm_eval, dict):
-                        if 'overall_score' in llm_eval:
-                            llm_ans = float(llm_eval['overall_score'])
-                            answer_res['answer_score'] = round(0.4 * answer_res['answer_score'] + 0.6 * llm_ans, 1)
-                        if 'overall_impression' in llm_eval and llm_eval['overall_impression']:
-                            answer_res['answer_feedback'] = f"{llm_eval['overall_impression']} {answer_res.get('answer_feedback', '')}".strip()
-                        if 'improvement_tips' in llm_eval and isinstance(llm_eval['improvement_tips'], list):
-                            llm_tips = llm_eval['improvement_tips']
+                    
+                    if strict_eval:
+                        llm_ans = float(strict_eval.get('overall_score', 50))
+                        answer_res['answer_score'] = round(0.4 * answer_res['answer_score'] + 0.6 * llm_ans, 1)
+                        
+                        weaknesses = strict_eval.get('weaknesses', [])
+                        if strict_eval.get('follow_up_would_help'):
+                            weaknesses.append("Follow-up: " + strict_eval.get('follow_up_would_help'))
+                        llm_tips = weaknesses
+                        
                 except Exception as llm_err:
-                    logger.warning(f"Groq Alex LLM feedback evaluation warning: {llm_err}")
+                    logger.warning(f"Strict LLM evaluation failed: {llm_err}")
+            
+            answer_res['strict_eval'] = strict_eval
+            answer_res['candidate_level'] = candidate_level
+            answer_res['level_confidence'] = level_confidence
 
             answer_log.status = AnalysisPipelineLog.Status.DONE
         except Exception as e:
@@ -200,6 +215,8 @@ def analyze_session(self, session_id: str) -> str:
                     final_tips.append(t)
             final_tips = final_tips[:5]
 
+        strict_eval = answer_res.get('strict_eval', {})
+        
         AnalysisReport.objects.update_or_create(
             session=session,
             defaults={
@@ -208,6 +225,16 @@ def analyze_session(self, session_id: str) -> str:
                 'answer_score': report_data['answer_score'],
                 'overall_score': report_data['overall_score'],
                 'transcript': speech_res.get('transcript', ''),
+                
+                # New strict fields
+                'candidate_level': answer_res.get('candidate_level', 'mid'),
+                'level_confidence': answer_res.get('level_confidence', 0),
+                'level_adjusted_overall': strict_eval.get('level_adjusted_score', report_data['overall_score']),
+                'red_flags': strict_eval.get('red_flags', []),
+                'green_flags': strict_eval.get('green_flags', []),
+                'evidence_quotes': strict_eval.get('dimensions', {}),
+                'strict_mode': True,
+
                 'speech_metrics': {
                     'wpm': speech_res.get('wpm'),
                     'filler_count': speech_res.get('filler_count'),

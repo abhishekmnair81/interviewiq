@@ -21,6 +21,15 @@ class AnalysisReport(models.Model):
     is_partial = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    candidate_level = models.CharField(max_length=20, default='mid')
+    level_confidence = models.PositiveSmallIntegerField(default=0)
+    level_adjusted_overall = models.FloatField(null=True, blank=True)
+    red_flags = models.JSONField(default=list, blank=True)
+    green_flags = models.JSONField(default=list, blank=True)
+    verdict = models.TextField(blank=True)
+    evidence_quotes = models.JSONField(default=list, blank=True)
+    strict_mode = models.BooleanField(default=True)
+
     class Meta:
         db_table = 'analysis_reports'
         verbose_name = 'Analysis Report'
