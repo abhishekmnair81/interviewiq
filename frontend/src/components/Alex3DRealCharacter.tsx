@@ -177,7 +177,7 @@ export function Alex3DRealCharacter({
 
     setProgress(5);
     new GLTFLoader().load(
-      encodeURI('/A person sitting comfortably at a desk, looki_variant2.glb'),
+      encodeURI('/models/alex.glb'),
       (gltf) => {
         const model = gltf.scene;
         model.traverse((c) => {

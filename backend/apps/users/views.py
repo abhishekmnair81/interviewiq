@@ -103,3 +103,48 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+from django.utils import timezone
+from apps.analysis.services.resume_parser import extract_text, build_highlights
+
+class ResumeUploadView(APIView):
+    """
+    Handles upload, parsing, and deletion of user resumes.
+    """
+    permission_classes = [IsAuthenticated, IsActiveUser]
+
+    def post(self, request):
+        file_obj = request.FILES.get('resume')
+        if not file_obj:
+            return Response({"error": "No resume file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if file_obj.size > 5 * 1024 * 1024:
+            return Response({"error": "File size exceeds 5MB limit."}, status=status.HTTP_400_BAD_REQUEST)
+
+        filename = file_obj.name.lower()
+        ext = filename.split('.')[-1] if '.' in filename else ''
+        if ext not in ['pdf', 'docx', 'txt']:
+            return Response({"error": "Invalid file type. Only PDF, DOCX, or TXT allowed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        user.resume_file = file_obj
+        user.resume_uploaded_at = timezone.now()
+        
+        # Parse
+        file_obj.seek(0)
+        text = extract_text(file_obj, filename)
+        user.resume_text = text
+        user.resume_highlights = build_highlights(text)
+        
+        user.save()
+        return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        user = request.user
+        if user.resume_file:
+            user.resume_file.delete()
+        user.resume_text = None
+        user.resume_highlights = None
+        user.resume_uploaded_at = None
+        user.save()
+        return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)

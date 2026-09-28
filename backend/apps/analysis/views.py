@@ -5,9 +5,12 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from rest_framework import viewsets, permissions
+from rest_framework.views import APIView
+from rest_framework.response import Response
 from .models import AnalysisPipelineLog
 from .serializers import AnalysisPipelineLogSerializer
 from .tts_service import synthesize_neural_audio
+from .services.code_runner import OneCompilerRunner
 
 logger = logging.getLogger(__name__)
 
@@ -70,3 +73,18 @@ class NeuralTTSView(View):
         except Exception as e:
             logger.error(f"TTS synthesis error: {e}")
             return JsonResponse({'error': str(e)}, status=500)
+
+class CodeRunView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        source_code = request.data.get('source_code')
+        language = request.data.get('language')
+        stdin = request.data.get('stdin', '')
+
+        if not source_code or not language:
+            return Response({'error': 'source_code and language are required'}, status=400)
+
+        runner = OneCompilerRunner()
+        result = runner.run_code(source_code, language, stdin)
+        return Response(result)

@@ -13,16 +13,17 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 class InterviewSessionCreateSerializer(serializers.ModelSerializer):
     question_id = serializers.UUIDField(required=False, write_only=True)
-
     question = serializers.CharField(required=False, allow_blank=True, default='')
+    used_resume = serializers.BooleanField(required=False, write_only=True, default=False)
 
     class Meta:
         model = InterviewSession
-        fields = ('id', 'question', 'question_category', 'question_id', 'status', 'created_at')
+        fields = ('id', 'question', 'question_category', 'question_id', 'status', 'created_at', 'used_resume')
         read_only_fields = ('id', 'status', 'created_at')
 
     def create(self, validated_data):
         question_id = validated_data.pop('question_id', None)
+        req_used_resume = validated_data.pop('used_resume', False)
         user = self.context['request'].user
 
         if question_id:
@@ -34,11 +35,9 @@ class InterviewSessionCreateSerializer(serializers.ModelSerializer):
                 if not validated_data.get('question_category'):
                     validated_data['question_category'] = q_obj.category
             except Question.DoesNotExist:
-
                 pass
 
         if not validated_data.get('question'):
-
             q_obj = Question.objects.order_by('?').first()
             if q_obj:
                 validated_data['question_ref'] = q_obj
@@ -54,6 +53,12 @@ class InterviewSessionCreateSerializer(serializers.ModelSerializer):
             user = User.objects.first()
 
         validated_data['user'] = user
+
+        if req_used_resume and user and user.is_authenticated and user.resume_text:
+            validated_data['used_resume'] = True
+            validated_data['resume_text'] = user.resume_text
+            validated_data['resume_highlights'] = user.resume_highlights
+
         return super().create(validated_data)
 
 class InterviewSessionSerializer(serializers.ModelSerializer):

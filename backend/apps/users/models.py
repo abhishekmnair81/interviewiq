@@ -60,6 +60,10 @@ class User(AbstractUser):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    resume_file = models.FileField(upload_to='resumes/', null=True, blank=True)
+    resume_text = models.TextField(null=True, blank=True)
+    resume_highlights = models.JSONField(null=True, blank=True)
+    resume_uploaded_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

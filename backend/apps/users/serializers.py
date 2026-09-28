@@ -65,7 +65,33 @@ class UserLoginSerializer(serializers.Serializer):
         return attrs
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    has_resume = serializers.SerializerMethodField()
+    resume_filename = serializers.SerializerMethodField()
+    resume_summary = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ('id', 'email', 'full_name', 'professional_field', 'created_at')
-        read_only_fields = ('id', 'email', 'created_at')
+        fields = (
+            'id', 'email', 'full_name', 'professional_field', 'created_at',
+            'has_resume', 'resume_filename', 'resume_uploaded_at', 'resume_summary'
+        )
+        read_only_fields = (
+            'id', 'email', 'created_at',
+            'has_resume', 'resume_filename', 'resume_uploaded_at', 'resume_summary'
+        )
+
+    def get_has_resume(self, obj):
+        return bool(obj.resume_file)
+
+    def get_resume_filename(self, obj):
+        return obj.resume_file.name.split('/')[-1] if obj.resume_file else None
+
+    def get_resume_summary(self, obj):
+        if obj.resume_highlights:
+            skills = obj.resume_highlights.get('skills', [])
+            return {
+                "skills": skills[:5],
+                "experience_count": len(obj.resume_highlights.get('experience', [])),
+                "project_count": len(obj.resume_highlights.get('projects', []))
+            }
+        return None

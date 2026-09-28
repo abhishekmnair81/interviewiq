@@ -347,6 +347,7 @@ export default function RecordPage() {
       activeStreamRef.current = canvasStream;
       if (videoRef.current) { videoRef.current.srcObject = canvasStream; videoRef.current.play().catch(() => {}); }
     } catch { setCameraStatus('denied'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startMicAnalyser]);
 
   useEffect(() => {
@@ -652,6 +653,7 @@ export default function RecordPage() {
 
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-indigo-400 shadow-lg flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={currentProfile.image} alt={currentProfile.name} className="w-full h-full object-cover" />
                 </div>
                 <div>
@@ -771,6 +773,7 @@ export default function RecordPage() {
                 <div className={`relative w-44 h-44 sm:w-52 sm:h-52 rounded-full overflow-hidden border-4 transition-all duration-500 ${
                   hrEmotion === 'impressed' ? 'border-emerald-400 shadow-[0_0_50px_rgba(16,185,129,0.6)] scale-105' : avatarSpeaking ? 'border-indigo-400 shadow-[0_0_40px_rgba(99,102,241,0.5)]' : 'border-slate-700'
                 }`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={currentProfile.image} alt={currentProfile.name} className="w-full h-full object-cover" />
                 </div>
 

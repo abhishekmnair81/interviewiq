@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch, AuthResponse } from '@/lib/api';
+import Logo from '@/components/Logo';
+import Footer from '@/components/Footer';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,25 +45,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 text-slate-900 font-sans relative overflow-hidden">
-      {}
-      <div className="ambient-blur w-[400px] h-[400px] bg-indigo-200/50 top-[-100px] left-1/2 -translate-x-1/2" />
-      <div className="ambient-blur w-[300px] h-[300px] bg-emerald-200/40 bottom-[-50px] right-[-50px]" />
+    <main className="min-h-screen-dvh flex flex-col justify-between font-sans relative overflow-hidden">
+      <div className="absolute inset-0 bg-noise opacity-30 z-0 pointer-events-none" />
+      <div className="absolute inset-0 bg-surface-0/60 z-0 pointer-events-none" />
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center mb-8">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-600 shadow-md shadow-indigo-600/20 mb-4">
-          <span className="text-xl font-black text-white">IQ</span>
+      <div className="ambient-blob absolute w-[400px] h-[400px] bg-primary-500/20 top-[-100px] left-1/2 -translate-x-1/2" />
+      <div className="ambient-blob absolute w-[300px] h-[300px] bg-signal-500/10 bottom-[-50px] right-[-50px]" />
+
+      <div className="flex-1 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center mb-8 flex flex-col items-center">
+          <div className="mb-4">
+            <Logo />
+          </div>
+          <p className="mt-2 text-xs text-secondary-color font-normal">
+            Sign in to access your AI coaching studio
+          </p>
         </div>
-        <h1 className="text-3xl font-black tracking-tight text-slate-900">
-          Welcome to Interview<span className="text-indigo-600">IQ</span>
-        </h1>
-        <p className="mt-2 text-xs text-slate-600 font-normal">
-          Sign in to access your AI coaching studio
-        </p>
-      </div>
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4">
-        <div className="glass-card py-8 px-6 sm:px-10 rounded-3xl border border-slate-200/90 shadow-xl">
+        <div className="glass-card py-8 px-6 sm:px-10">
           {error && (
             <div className="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold text-center">
               ⚠️ {error}
@@ -70,7 +72,7 @@ export default function LoginPage() {
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-muted-color mb-1.5">
                 Email address
               </label>
               <input
@@ -78,13 +80,13 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-xs outline-none transition shadow-sm"
+                className="input-base"
                 placeholder="you@example.com"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-muted-color mb-1.5">
                 Password
               </label>
               <input
@@ -92,7 +94,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-xs outline-none transition shadow-sm"
+                className="input-base"
                 placeholder="••••••••"
               />
             </div>
@@ -100,20 +102,21 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 px-4 btn-primary font-black rounded-2xl text-xs shadow-md transition disabled:opacity-50"
+              className="btn btn-glow w-full"
             >
               {loading ? 'Signing in...' : 'Sign In to Dashboard →'}
             </button>
           </form>
 
-          <div className="mt-6 text-center text-xs text-slate-600">
+          <div className="mt-6 text-center text-xs text-secondary-color">
             Don&apos;t have an account?{' '}
-            <Link href="/register" className="font-bold text-indigo-600 hover:text-indigo-500 transition">
+            <Link href="/register" className="font-bold text-brand hover:text-primary-300 transition">
               Create an account
             </Link>
           </div>
         </div>
       </div>
-    </div>
+      <Footer />
+    </main>
   );
 }

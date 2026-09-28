@@ -8,9 +8,18 @@ import { useSpeechInterviewer } from '@/hooks/useSpeechInterviewer';
 import { useFaceTracking } from '@/hooks/useFaceTracking';
 import { useInterviewSocket, FaceReading } from '@/hooks/useInterviewSocket';
 import { useStarAnalyzer } from '@/hooks/useStarAnalyzer';
-import { AlexImageCharacter } from '@/components/AlexImageCharacter';
+import { CodingChallenge } from '@/components/CodingChallenge';
+import { cn } from '@/lib/utils';
+import ResumeUpload from '@/components/ResumeUpload';
 
-type AppState = 'SETUP' | 'CONNECTING' | 'ALEX_SPEAKING' | 'USER_TURN' | 'PROCESSING' | 'COMPLETE';
+// New design system components
+import { InterviewHeader } from '@/components/interview/InterviewHeader';
+import { AlexPanel } from '@/components/interview/AlexPanel';
+import { CandidatePanel } from '@/components/interview/CandidatePanel';
+import { ConversationStream, type ConversationTurn } from '@/components/interview/ConversationStream';
+import { TabSwitchOverlay, CopyPasteBanner } from '@/components/interview/ProctoringBanner';
+
+type AppState = 'SETUP' | 'CONNECTING' | 'ALEX_SPEAKING' | 'USER_TURN' | 'PROCESSING' | 'CODING_PHASE' | 'COMPLETE' | 'TERMINATED';
 type AvatarState = 'idle' | 'speaking' | 'thinking' | 'listening';
 
 export default function LiveInterviewPage() {
@@ -21,7 +30,9 @@ export default function LiveInterviewPage() {
   const [jobRole, setJobRole] = useState('Software Engineer');
   const [category, setCategory] = useState('behavioral');
   const [difficulty, setDifficulty] = useState('medium');
+  const [useResume, setUseResume] = useState(true);
   const [setupStep, setSetupStep] = useState(1);
+  const [profile, setProfile] = useState<any>(null);
 
   const [appState, setAppState] = useState<AppState>('SETUP');
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -46,6 +57,33 @@ export default function LiveInterviewPage() {
   const waitingForUserRef = useRef(false);
 
   const typedAnswerRef = useRef('');
+  const isCodingPhaseRef = useRef(false);
+  
+  // Coding Challenge State
+  const [codingChallengeData, setCodingChallengeData] = useState<{
+    question_id: string;
+    index: number;
+    total: number;
+    title: string;
+    description: string;
+    starter_code: string;
+    language: string;
+    examples: Array<{ input: string; expected_output: string; }>;
+    time_limit_seconds: number;
+  } | null>(null);
+  const [codingSubmissionResult, setCodingSubmissionResult] = useState<{
+    passed: boolean;
+    feedback: string;
+    nextChallenge: any;
+  } | null>(null);
+
+  const [hasConsented, setHasConsented] = useState(false);
+
+  // New state for conversation log + proctoring UI
+  const [conversationTurns, setConversationTurns] = useState<ConversationTurn[]>([]);
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [tabSwitchOverlayVisible, setTabSwitchOverlayVisible] = useState(false);
+  const [copyPasteVisible, setCopyPasteVisible] = useState(false);
 
   const { isSpeaking, isListening, speak, cancelSpeech, startListening, stopListening, checkSupport } = useSpeechInterviewer();
   const { eyeContactScore, stabilityScore, currentEmotion } = useFaceTracking(videoRef);
@@ -53,6 +91,7 @@ export default function LiveInterviewPage() {
 
   useEffect(() => {
     setMounted(true);
+    apiFetch('/users/profile/').then(setProfile).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -168,6 +207,12 @@ export default function LiveInterviewPage() {
       setAppState('PROCESSING');
       setExchangeCount((prev) => prev + 1);
 
+      // Capture user turn in conversation stream
+      setConversationTurns(prev => [
+        ...prev,
+        { id: `user-${Date.now()}`, role: 'user', text: answer, timestamp: Date.now() }
+      ]);
+
       sendTranscript(answer);
 
       typedAnswerRef.current = '';
@@ -185,36 +230,47 @@ export default function LiveInterviewPage() {
     (text: string, isComplete: boolean) => {
       setAlexText(text);
       waitingForUserRef.current = false;
+      // Capture turn in conversation stream
+      setConversationTurns(prev => [
+        ...prev,
+        { id: `alex-${Date.now()}`, role: 'alex', text, timestamp: Date.now() }
+      ]);
 
       if (isComplete) {
         speak(text, () => {
           setAppState('COMPLETE');
         });
       } else {
-        setAppState('ALEX_SPEAKING');
+        setAppState((prev) => prev === 'CODING_PHASE' ? 'CODING_PHASE' : 'ALEX_SPEAKING');
         speak(text, () => {
+          setAppState((prev) => {
+            if (prev === 'CODING_PHASE' || isCodingPhaseRef.current) {
+              return 'CODING_PHASE';
+            }
+            
+            setInterimTranscript('');
+            setFinalTranscript('');
+            waitingForUserRef.current = true;
 
-          setAppState('USER_TURN');
-          setInterimTranscript('');
-          setFinalTranscript('');
-          waitingForUserRef.current = true;
-
-          startListening(
-            (liveText) => {
-              setInterimTranscript(liveText);
-            },
-            (autoFinalText) => {
-              const clean = autoFinalText.trim();
-              if (clean.length >= 3) {
-                if (submitAnswerRef.current) {
-                  submitAnswerRef.current(clean);
+            startListening(
+              (liveText) => {
+                setInterimTranscript(liveText);
+              },
+              (autoFinalText) => {
+                const clean = autoFinalText.trim();
+                if (clean.length >= 3) {
+                  if (submitAnswerRef.current) {
+                    submitAnswerRef.current(clean);
+                  }
+                } else {
+                  setSttError("I didn't catch that clearly. Please speak or type your answer!");
                 }
-              } else {
-                setSttError("I didn't catch that clearly. Please speak or type your answer!");
-              }
-            },
-            3500
-          );
+              },
+              3500
+            );
+
+            return 'USER_TURN';
+          });
         });
       }
     },
@@ -239,6 +295,7 @@ export default function LiveInterviewPage() {
           difficulty_level: difficulty,
           candidate_name: candidateName,
           mode: 'live_ai',
+          used_resume: useResume,
         }),
       });
 
@@ -259,6 +316,31 @@ export default function LiveInterviewPage() {
       handleAlexSpeechResponse(latestMessage.text, !!latestMessage.is_complete);
     } else if (latestMessage.type === 'error' && latestMessage.message) {
       setSttError(latestMessage.message);
+    } else if (latestMessage.type === 'coding_challenge' && latestMessage.challenge) {
+      isCodingPhaseRef.current = true;
+      const chal = latestMessage.challenge;
+      setCodingChallengeData({
+        question_id: chal.id,
+        index: chal.index,
+        total: chal.total,
+        title: chal.title,
+        description: chal.description,
+        starter_code: chal.starter_code,
+        language: chal.language,
+        examples: chal.examples,
+        time_limit_seconds: chal.time_limit_seconds
+      });
+      setCodingSubmissionResult(null);
+      setAppState('CODING_PHASE');
+    } else if (latestMessage.type === 'submission_result') {
+      setCodingSubmissionResult({
+        passed: latestMessage.passed ?? false,
+        feedback: latestMessage.feedback ?? '',
+        nextChallenge: latestMessage.next_challenge
+      });
+    } else if (latestMessage.type === 'interview_terminated') {
+      setAppState('TERMINATED');
+      alert('Interview terminated due to multiple tab switches or policy violations.');
     }
   }, [latestMessage, handleAlexSpeechResponse]);
 
@@ -275,6 +357,36 @@ export default function LiveInterviewPage() {
     }, 3000);
     return () => clearInterval(interval);
   }, [appState, sessionId]);
+
+  // Proctoring: Tab switching
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && appState !== 'SETUP' && appState !== 'CONNECTING' && appState !== 'COMPLETE' && appState !== 'TERMINATED') {
+        sendTranscript({ type: 'tab_switch_detected' });
+        if (isSpeaking) cancelSpeech();
+        setTabSwitchCount(prev => prev + 1);
+        setTabSwitchOverlayVisible(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [appState, sendTranscript, isSpeaking, cancelSpeech]);
+
+  const handleSubmitCode = (code: string, language: string, questionId: string) => {
+    sendTranscript({
+      type: 'submit_code',
+      code,
+      language,
+      question_id: questionId
+    });
+    // Do not change appState here. Keep it as CODING_PHASE so the editor and overlay remain visible.
+  };
+
+  const handleCopyPasteDetected = () => {
+    sendTranscript({ type: 'copy_paste_detected' });
+    setCopyPasteVisible(true);
+    setTimeout(() => setCopyPasteVisible(false), 4000);
+  };
 
   const handleReplayAlex = () => {
     if (!alexText || isSpeaking) return;
@@ -325,520 +437,463 @@ export default function LiveInterviewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col relative overflow-hidden">
-      {}
-      <div className="ambient-blur w-[600px] h-[600px] bg-indigo-200/40 top-[-200px] left-1/2 -translate-x-1/2" />
+    <div className="min-h-screen flex flex-col bg-surface-0 font-sans relative overflow-hidden">
+      {/* Proctoring Overlays */}
+      <TabSwitchOverlay 
+        visible={tabSwitchOverlayVisible} 
+        switchCount={tabSwitchCount} 
+        onDismiss={() => setTabSwitchOverlayVisible(false)} 
+      />
+      <CopyPasteBanner visible={copyPasteVisible} />
 
-      {}
-      <header className="glass-nav px-6 py-4 border-b border-slate-200/80 flex items-center justify-between z-30">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-600/20">
-            <span className="text-xl font-black text-white">IQ</span>
-          </div>
-          <div>
-            <span className="text-base font-black tracking-tight text-slate-900 block leading-none">
-              Interview<span className="text-indigo-600">IQ</span> Studio
-            </span>
-            <span className="text-[10px] uppercase font-extrabold tracking-wider text-indigo-600">
-              Alex • Conversational AI Persona
-            </span>
-          </div>
-        </Link>
+      {/* Header */}
+      {appState !== 'SETUP' && appState !== 'COMPLETE' && appState !== 'TERMINATED' && (
+        <InterviewHeader
+          durationSec={durationSec}
+          exchangeCount={exchangeCount}
+          connectionStatus={isConnected ? 'connected' : (appState === 'CONNECTING' ? 'connecting' : 'disconnected')}
+          jobRole={jobRole}
+          category={category}
+          usedResume={useResume}
+          onEndInterview={() => {
+            cancelSpeech();
+            stopListening();
+            endSession();
+            setAppState('COMPLETE');
+          }}
+        />
+      )}
 
-        {appState !== 'SETUP' && appState !== 'COMPLETE' && (
-          <div className="flex items-center gap-4">
-            <div className="text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-2xl shadow-sm flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Duration: {formatDuration(durationSec)}</span>
-            </div>
-            <div className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-2xl">
-              Exchange {exchangeCount} of ~8
-            </div>
-            <button
-              onClick={() => {
-                cancelSpeech();
-                stopListening();
-                endSession();
-                setAppState('COMPLETE');
-              }}
-              className="text-xs font-bold px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-md transition"
-            >
-              📞 End Call &amp; View Report
-            </button>
-          </div>
-        )}
-      </header>
-
-      {}
-      {appState === 'SETUP' && (
-        <main className="flex-1 flex items-center justify-center p-6 relative z-10 max-w-3xl mx-auto w-full">
-          <div className="glass-card p-8 rounded-3xl border border-slate-200/90 shadow-xl w-full space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+      {/* Main Content Area */}
+      <main className="flex-1 flex overflow-hidden relative z-10 p-4 sm:p-6 gap-6">
+        
+        {appState === 'SETUP' && (
+          <div className="w-full max-w-2xl mx-auto my-auto glass-card p-8 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-surface pb-6 mb-8">
               <div>
-                <span className="text-[11px] font-extrabold uppercase tracking-widest text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full">
-                  Step {setupStep} of 4 Setup
+                <span className="text-[11px] font-extrabold uppercase tracking-widest text-primary-600 bg-primary-500/10 px-3 py-1 rounded-full mb-3 inline-block">
+                  Step {setupStep} of 4
                 </span>
-                <h1 className="text-2xl font-black text-slate-900 mt-2">
+                <h1 className="text-2xl font-black text-primary-color">
                   {setupStep === 1 && 'Candidate Profile & Target Role'}
                   {setupStep === 2 && 'Interview Focus & Complexity'}
-                  {setupStep === 3 && 'Webcam & Microphone Check'}
-                  {setupStep === 4 && 'Interview Orientation with Alex'}
+                  {setupStep === 3 && 'System Check'}
+                  {setupStep === 4 && 'Orientation'}
                 </h1>
               </div>
               <div className="flex gap-1.5">
                 {[1, 2, 3, 4].map((step) => (
                   <div
                     key={step}
-                    className={`w-3 h-3 rounded-full transition ${
-                      step === setupStep
-                        ? 'bg-indigo-600 scale-110'
-                        : step < setupStep
-                        ? 'bg-emerald-500'
-                        : 'bg-slate-200'
-                    }`}
+                    className={cn(
+                      'w-2 h-2 rounded-full transition-all duration-300',
+                      step === setupStep ? 'w-6 bg-primary-500' : 
+                      step < setupStep ? 'bg-primary-500/40' : 'bg-surface-border'
+                    )}
                   />
                 ))}
               </div>
             </div>
 
-            {}
             {setupStep === 1 && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-1.5">
-                    Your Name
-                  </label>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-primary-color">Your Name</label>
                   <input
                     type="text"
+                    className="w-full bg-surface-2 border border-surface rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary-500/50 outline-none text-primary-color"
                     value={candidateName}
                     onChange={(e) => setCandidateName(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-semibold focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
-                    placeholder="Alex Mercer"
+                    placeholder="E.g. Jane Doe"
                   />
                 </div>
-
-                <div>
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-1.5">
-                    Target Job Role
-                  </label>
-                  <select
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-primary-color">Target Role</label>
+                  <input
+                    type="text"
+                    className="w-full bg-surface-2 border border-surface rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary-500/50 outline-none text-primary-color"
                     value={jobRole}
                     onChange={(e) => setJobRole(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-semibold focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
-                  >
-                    <option value="Software Engineer">Software Engineer</option>
-                    <option value="Frontend Engineer">Frontend Engineer</option>
-                    <option value="Backend Engineer">Backend Engineer</option>
-                    <option value="Full Stack Developer">Full Stack Developer</option>
-                    <option value="Data Engineer">Data Engineer</option>
-                    <option value="Product Manager">Product Manager</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {}
-            {setupStep === 2 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-1.5">
-                    Interview Category
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-semibold focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
-                  >
-                    <option value="behavioral">Behavioral (STAR Method)</option>
-                    <option value="hr">Executive HR &amp; Culture</option>
-                    <option value="technical">Technical Architecture</option>
-                    <option value="mixed">Mixed Multimodal Practice</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-1.5">
-                    Difficulty Level
-                  </label>
-                  <select
-                    value={difficulty}
-                    onChange={(e) => setDifficulty(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-semibold focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
-                  >
-                    <option value="easy">Junior / Entry Level</option>
-                    <option value="medium">Mid-Level / Senior</option>
-                    <option value="hard">Lead / Staff Specialist</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {}
-            {setupStep === 3 && (
-              <div className="space-y-4">
-                <div className="relative h-56 rounded-2xl bg-slate-900 border border-slate-200 overflow-hidden flex items-center justify-center">
-                  <video
-                    ref={attachStream}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover transform -scale-x-100"
+                    placeholder="E.g. Senior Frontend Engineer"
                   />
-                  {!cameraActive && (
-                    <div className="absolute inset-0 bg-slate-100 flex flex-col items-center justify-center p-4 text-center">
-                      <span className="text-3xl mb-2">📷</span>
-                      <p className="text-xs font-bold text-slate-800">Webcam Inactive</p>
-                      <p className="text-[11px] text-slate-500 max-w-xs">
-                        Please grant camera permissions in your browser.
-                      </p>
-                    </div>
-                  )}
                 </div>
-
-                <div>
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-700 mb-1">
-                    <span>🎤 Microphone Input Level</span>
-                    <span>{micLevel}%</span>
-                  </div>
-                  <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-emerald-500 h-full transition-all duration-100"
-                      style={{ width: `${micLevel}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {}
-            {setupStep === 4 && (
-              <div className="bg-indigo-50/70 border border-indigo-200 p-5 rounded-2xl space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xl font-bold shadow-md">
-                    👋
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-extrabold text-slate-900">Meet Alex</h3>
-                    <p className="text-xs text-slate-600">Senior AI Technical Interviewer</p>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-700 leading-relaxed">
-                  Alex will start with friendly small talk to help you get comfortable. Simply speak naturally, answer questions one step at a time, and treat it like a real conversation with a senior colleague.
-                </p>
-              </div>
-            )}
-
-            {}
-            <div className="flex justify-between items-center pt-4 border-t border-slate-200">
-              {setupStep > 1 ? (
                 <button
-                  onClick={() => setSetupStep((s) => s - 1)}
-                  className="px-5 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900 transition"
-                >
-                  ← Back
-                </button>
-              ) : (
-                <div />
-              )}
-
-              {setupStep < 4 ? (
-                <button
-                  onClick={() => setSetupStep((s) => s + 1)}
-                  className="px-6 py-3 btn-primary text-xs font-bold rounded-2xl shadow-md"
+                  className="w-full h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition shadow-glow-primary mt-4 disabled:opacity-50"
+                  onClick={() => setSetupStep(2)}
+                  disabled={!candidateName || !jobRole}
                 >
                   Continue →
                 </button>
-              ) : (
-                <button
-                  onClick={handleStartInterview}
-                  className="px-8 py-3.5 btn-emerald text-xs font-black rounded-2xl shadow-md transform hover:scale-[1.02] transition"
-                >
-                  🚀 I&apos;m Ready — Start Interview
-                </button>
-              )}
-            </div>
-          </div>
-        </main>
-      )}
-
-      {}
-      {appState === 'CONNECTING' && (
-        <main className="flex-1 flex flex-col items-center justify-center p-6 text-center z-10">
-          <div className="w-20 h-20 rounded-full border-4 border-t-indigo-600 border-r-emerald-500 border-b-transparent border-l-transparent animate-spin mb-6 shadow-xl" />
-          <h2 className="text-2xl font-black text-slate-900">Connecting to Alex...</h2>
-          <p className="text-xs text-slate-600 max-w-sm mt-2 font-medium">
-            Setting up your personalized conversational session for the position of {jobRole}.
-          </p>
-        </main>
-      )}
-
-      {}
-      {(appState === 'ALEX_SPEAKING' || appState === 'USER_TURN' || appState === 'PROCESSING') && (
-        <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden min-h-0 relative z-10">
-
-          {}
-          <div
-            className={`glass-card rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden shadow-xl transition-all duration-500 border ${
-              avatarState === 'speaking'
-                ? 'border-indigo-500 ring-4 ring-indigo-500/20 shadow-indigo-500/10'
-                : 'border-slate-200/90'
-            }`}
-          >
-            <div className="flex justify-between items-center z-10">
-              <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-800 flex items-center gap-2 shadow-sm">
-                <span className={`w-2.5 h-2.5 rounded-full ${avatarState === 'speaking' ? 'bg-emerald-500 animate-pulse' : 'bg-indigo-500'}`} />
-                <span>Alex (AI Interviewer)</span>
               </div>
+            )}
 
-              <div className="flex items-center gap-2">
-                <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 uppercase tracking-wider ${
-                  avatarState === 'speaking'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : avatarState === 'listening'
-                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                    : avatarState === 'thinking'
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-slate-100 text-slate-600 border-slate-200'
-                }`}>
-                  <span>{avatarState === 'speaking' ? '🎙 Speaking' : avatarState === 'listening' ? '👂 Listening' : avatarState === 'thinking' ? '🧠 Thinking' : 'Ready'}</span>
+            {setupStep === 2 && (
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-primary-color">Interview Focus</label>
+                  <select
+                    className="w-full bg-surface-2 border border-surface rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary-500/50 outline-none text-primary-color"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                  >
+                    <option value="behavioral">Behavioral (Leadership & Culture)</option>
+                    <option value="technical">Technical (Coding & Architecture)</option>
+                    <option value="system_design">System Design (Scalability & Infra)</option>
+                    <option value="product_sense">Product Sense (Strategy & Metrics)</option>
+                  </select>
                 </div>
-                <div className="bg-white border border-slate-200 px-3 py-1 rounded-full text-xs font-bold text-indigo-700 shadow-sm">
-                  {jobRole}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-primary-color">Difficulty Level</label>
+                  <select
+                    className="w-full bg-surface-2 border border-surface rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary-500/50 outline-none text-primary-color"
+                    value={difficulty}
+                    onChange={(e) => setDifficulty(e.target.value)}
+                  >
+                    <option value="easy">Entry / Junior</option>
+                    <option value="medium">Mid-Level</option>
+                    <option value="hard">Senior / Staff</option>
+                  </select>
                 </div>
-              </div>
-            </div>
 
-            <div className="relative flex-1 my-4 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 min-h-[260px] flex items-center justify-center">
-              <AlexImageCharacter state={avatarState} alexText={alexText} candidateName={candidateName} jobRole={jobRole} />
-            </div>
-
-            <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-sm z-10">
-              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 mb-2">
-                <span className="text-indigo-600 font-extrabold text-[11px] uppercase tracking-wider">
-                  Alex Response
-                </span>
-                <div className="flex items-center gap-2">
-                  {alexText && (
-                    <button
-                      onClick={handleReplayAlex}
-                      disabled={isSpeaking || appState === 'PROCESSING'}
-                      title="Replay Alex voice"
-                      className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full transition flex items-center gap-1 disabled:opacity-50 hover:bg-indigo-100"
-                    >
-                      <span>🔊</span> Replay
-                    </button>
+                <div className="pt-2">
+                  <h4 className="text-sm font-semibold text-primary-color mb-3">Resume Personalization</h4>
+                  {profile && (
+                    <div className="mb-3">
+                      <ResumeUpload user={profile} onUpdate={setProfile} />
+                    </div>
                   )}
-                  {avatarState === 'speaking' && (
-                    <span className="text-[10px] font-bold text-emerald-700 animate-pulse">
-                      🔊 Audio Active
-                    </span>
+                  {profile?.has_resume && (
+                    <label className="flex items-center gap-3 p-4 border border-surface rounded-xl cursor-pointer hover:bg-surface-2 transition">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-primary-600 rounded bg-surface-3 border-surface-strong focus:ring-primary-500"
+                        checked={useResume}
+                        onChange={(e) => setUseResume(e.target.checked)}
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-primary-color">
+                          Use my uploaded resume to personalize questions
+                        </span>
+                        <span className="text-xs text-muted-color">
+                          Alex will ask about your specific projects and experience.
+                        </span>
+                      </div>
+                    </label>
                   )}
                 </div>
-              </div>
-              <p className="font-semibold text-slate-900 leading-relaxed text-xs sm:text-sm max-h-24 overflow-y-auto">
-                &quot;{alexText || 'Alex is ready...'}&quot;
-              </p>
-            </div>
-          </div>
 
-          {}
-          <div className="glass-card rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden shadow-xl border border-slate-200/90">
-            {}
-            <div className="flex justify-between items-center z-10">
-              <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-800 flex items-center gap-2 shadow-sm">
-                <span className={`w-2.5 h-2.5 rounded-full ${cameraActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                <span>You ({candidateName})</span>
-              </div>
-
-              {}
-              <div className="flex items-center gap-2">
-                <div
-                  className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
-                    eyeContactScore >= 75
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-rose-50 text-rose-700 border-rose-200'
-                  }`}
-                >
-                  <span>👁 {eyeContactScore >= 75 ? 'Eye Contact: Good' : 'Look at Camera'}</span>
-                </div>
-                <div className="bg-white border border-slate-200 px-3 py-1 rounded-full text-xs font-bold text-indigo-700 shadow-sm">
-                  Stability: {stabilityScore}%
+                <div className="flex gap-3 mt-4">
+                  <button
+                    className="flex-1 h-12 bg-surface-2 hover:bg-surface-3 text-secondary-color rounded-xl font-bold transition"
+                    onClick={() => setSetupStep(1)}
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    className="flex-[2] h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition shadow-glow-primary"
+                    onClick={() => setSetupStep(3)}
+                  >
+                    Continue →
+                  </button>
                 </div>
               </div>
-            </div>
+            )}
 
-            {}
-            <div className="relative flex-1 my-4 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 min-h-[260px] flex items-center justify-center">
-              <video
-                ref={attachStream}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover transform -scale-x-100"
-              />
-
-              {!cameraActive && (
-                <div className="absolute inset-0 bg-slate-100 flex flex-col items-center justify-center p-4 text-center z-10">
-                  <span className="text-3xl mb-2">📷</span>
-                  <p className="text-xs font-bold text-slate-800">Webcam Preview Active</p>
+            {setupStep === 3 && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-surface-2 border border-surface rounded-xl overflow-hidden aspect-video relative flex flex-col items-center justify-center">
+                    <video
+                      ref={attachStream}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+                    />
+                    {!cameraActive && (
+                      <div className="text-xs font-semibold tracking-widest text-muted-color uppercase">Camera Off</div>
+                    )}
+                  </div>
+                  <div className="bg-surface-2 border border-surface rounded-xl p-4 flex flex-col justify-center gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", micLevel > 5 ? "bg-emerald-500/20 text-emerald-500" : "bg-surface-3 text-muted-color")}>
+                        🎤
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-primary-color">Microphone</div>
+                        <div className="text-[10px] text-muted-color uppercase tracking-widest mt-1">
+                          {micLevel > 5 ? 'Receiving Audio' : 'No Input'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="h-2 w-full bg-surface-3 rounded-full overflow-hidden flex">
+                      <div className="h-full bg-emerald-500 transition-all duration-75" style={{ width: `${Math.min(100, micLevel)}%` }} />
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
 
-            {}
-            <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3 z-10">
-              <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700">
-                  Your Answer
-                </span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  isListening
-                    ? 'bg-emerald-100 text-emerald-700 animate-pulse'
-                    : appState === 'USER_TURN'
-                    ? 'bg-indigo-50 text-indigo-600'
-                    : 'bg-slate-100 text-slate-500'
-                }`}>
-                  {isListening ? '🎤 Listening... (Auto-submits after pause)' : appState === 'USER_TURN' ? '💬 Your Turn (Type or Speak)' : 'Waiting...'}
-                </span>
-              </div>
-
-              {}
-              <textarea
-                id="answer-textarea"
-                rows={3}
-                disabled={appState !== 'USER_TURN'}
-                placeholder={
-                  appState === 'USER_TURN'
-                    ? 'Speak your answer (mic active) or type here... (Press Enter to submit)'
-                    : 'Waiting for Alex to finish speaking...'
-                }
-                value={interimTranscript}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setInterimTranscript(val);
-                  typedAnswerRef.current = val;
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleUserSubmitAnswer();
-                  }
-                }}
-                className="w-full resize-none text-xs text-slate-800 font-medium leading-relaxed bg-slate-50 border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-
-              {sttError && (
-                <div className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 p-2 rounded-xl text-center">
-                  ⚠️ {sttError}
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
+                  <span className="text-lg">🛡️</span>
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-1">Proctoring Notice</h4>
+                    <p className="text-xs text-amber-600/80 dark:text-amber-400/80 leading-relaxed">
+                      This session uses AI tracking for eye contact, emotion, and tab switching. By proceeding, you consent to this monitoring.
+                    </p>
+                  </div>
                 </div>
-              )}
 
-              {}
-              <div className="flex items-center gap-3 pt-1">
-                <button
-                  id="speak-now-btn"
-                  onClick={handleToggleSpeak}
-                  disabled={appState === 'ALEX_SPEAKING' || appState === 'PROCESSING'}
-                  className={`flex-1 py-3 rounded-2xl font-black text-xs transition border flex items-center justify-center gap-2 shadow-md disabled:opacity-50 ${
-                    isListening
-                      ? 'bg-emerald-500 text-white border-emerald-600 animate-pulse shadow-emerald-500/20'
-                      : appState === 'USER_TURN'
-                      ? 'bg-white text-slate-800 border-slate-300 hover:border-indigo-400 hover:text-indigo-700'
-                      : 'bg-slate-100 text-slate-400 border-slate-200'
-                  }`}
-                >
-                  <span>🎤</span>
-                  <span>{isListening ? 'Listening... (tap to stop)' : 'Tap to Speak'}</span>
-                </button>
+                <label className="flex items-center gap-3 p-4 border border-surface rounded-xl cursor-pointer hover:bg-surface-2 transition">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 text-primary-600 rounded bg-surface-3 border-surface-strong focus:ring-primary-500"
+                    checked={hasConsented}
+                    onChange={(e) => setHasConsented(e.target.checked)}
+                  />
+                  <span className="text-sm font-semibold text-primary-color">
+                    I consent to video/audio tracking for this session
+                  </span>
+                </label>
 
-                <button
-                  id="submit-answer-btn"
-                  onClick={() => handleUserSubmitAnswer()}
-                  disabled={appState === 'ALEX_SPEAKING' || appState === 'PROCESSING'}
-                  className={`py-3 px-5 font-black text-xs rounded-2xl shadow-md transition flex items-center gap-1.5 ${
-                    appState === 'USER_TURN'
-                      ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white shadow-indigo-600/25 cursor-pointer'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  <span>✅</span>
-                  <span>Submit</span>
-                </button>
+                <div className="flex gap-3 mt-4">
+                  <button
+                    className="flex-1 h-12 bg-surface-2 hover:bg-surface-3 text-secondary-color rounded-xl font-bold transition"
+                    onClick={() => setSetupStep(2)}
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    className="flex-[2] h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition shadow-glow-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => setSetupStep(4)}
+                    disabled={!hasConsented || !cameraActive}
+                  >
+                    Continue →
+                  </button>
+                </div>
               </div>
-            </div>
-          </div>
-        </main>
-      )}
+            )}
 
-      {}
-      {appState === 'COMPLETE' && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center z-50">
-          <div className="max-w-lg w-full glass-card p-8 rounded-3xl border border-slate-200/90 shadow-2xl bg-white space-y-6">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 border border-emerald-200 flex items-center justify-center text-3xl mx-auto shadow-md">
-              🎉
-            </div>
-
-            <div>
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                Interview Completed!
-              </h2>
-              <p className="text-xs text-slate-600 mt-1 font-medium">
-                Great job talking with Alex! We are now analyzing your full conversation.
-              </p>
-            </div>
-
-            {}
-            <div className="grid grid-cols-2 gap-3 text-left">
-              <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                  Total Exchanges
-                </span>
-                <span className="text-xl font-black text-slate-900">{exchangeCount}</span>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                  Avg Eye Contact
-                </span>
-                <span className="text-xl font-black text-slate-900">{eyeContactScore}%</span>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                  Session Duration
-                </span>
-                <span className="text-xl font-black text-slate-900">
-                  {formatDuration(durationSec)}
-                </span>
-              </div>
-
-              <div className="bg-indigo-50 border border-indigo-200 p-3.5 rounded-2xl">
-                <span className="text-[10px] uppercase font-bold text-indigo-700 block mb-1">
-                  Report Status
-                </span>
-                <span className="text-xs font-bold text-indigo-800 flex items-center gap-1.5 mt-1">
-                  {!isReportReady && <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />}
-                  {isReportReady ? 'Report Ready! ✨' : 'Analyzing...'}
-                </span>
-              </div>
-            </div>
-
-            {}
-            {isReportReady ? (
-              <Link
-                href={`/report/${sessionId}`}
-                className="w-full py-4 btn-primary font-black text-xs rounded-2xl shadow-lg block text-center transform hover:scale-[1.02] transition"
-              >
-                View Full Multimodal Report →
-              </Link>
-            ) : (
-              <div className="py-3 px-4 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 animate-pulse">
-                Compiling AI analytics report... Please wait a moment.
+            {setupStep === 4 && (
+              <div className="space-y-6 text-center">
+                <div className="w-24 h-24 mx-auto bg-primary-600 rounded-full flex items-center justify-center shadow-glow-primary">
+                  <span className="text-4xl font-black text-white">IQ</span>
+                </div>
+                <h3 className="text-xl font-bold text-primary-color">Ready when you are!</h3>
+                <p className="text-sm text-secondary-color leading-relaxed max-w-sm mx-auto">
+                  You are about to start a live AI interview for the <strong className="text-primary-color">{jobRole}</strong> position. Alex will conduct the interview.
+                </p>
+                <div className="flex gap-3 mt-6">
+                  <button
+                    className="flex-1 h-12 bg-surface-2 hover:bg-surface-3 text-secondary-color rounded-xl font-bold transition"
+                    onClick={() => setSetupStep(3)}
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    className="flex-[2] h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition shadow-glow-accent"
+                    onClick={handleStartInterview}
+                  >
+                    Begin Interview →
+                  </button>
+                </div>
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+
+        {(appState === 'CONNECTING' || appState === 'COMPLETE' || appState === 'TERMINATED') && (
+          <div className="w-full max-w-md mx-auto my-auto text-center space-y-6">
+            {appState === 'CONNECTING' && (
+              <div className="p-8 glass-card shadow-2xl space-y-4">
+                <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                <h3 className="text-lg font-bold text-primary-color">Connecting to Alex...</h3>
+                <p className="text-xs text-muted-color">Establishing secure WebSocket connection.</p>
+              </div>
+            )}
+            
+            {appState === 'COMPLETE' && (
+              <div className="p-8 glass-card shadow-2xl text-center space-y-6">
+                <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto text-3xl mb-2">
+                  ✨
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-primary-color">Interview Complete</h3>
+                  <p className="text-sm text-secondary-color mt-2">
+                    Great job! We are compiling your multimodal performance report.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-left">
+                  <div className="bg-surface-2 rounded-xl p-3 border border-surface">
+                    <div className="text-[10px] uppercase font-bold text-muted-color mb-1">Exchanges</div>
+                    <div className="text-xl font-black text-primary-color">{exchangeCount}</div>
+                  </div>
+                  <div className="bg-surface-2 rounded-xl p-3 border border-surface">
+                    <div className="text-[10px] uppercase font-bold text-muted-color mb-1">Duration</div>
+                    <div className="text-xl font-black text-primary-color">{formatDuration(durationSec)}</div>
+                  </div>
+                </div>
+
+                {isReportReady ? (
+                  <Link
+                    href={`/report/${sessionId}`}
+                    className="w-full h-12 flex items-center justify-center bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition shadow-glow-primary"
+                  >
+                    View Report →
+                  </Link>
+                ) : (
+                  <div className="w-full h-12 flex items-center justify-center bg-surface-2 border border-surface rounded-xl text-sm font-semibold text-primary-color">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                      Analyzing...
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {appState === 'TERMINATED' && (
+              <div className="p-8 glass-card shadow-2xl text-center space-y-6">
+                <div className="w-16 h-16 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center mx-auto text-3xl">
+                  🛑
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-primary-color">Interview Terminated</h3>
+                  <p className="text-sm text-secondary-color mt-2">
+                    Your session was ended due to proctoring violations.
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard"
+                  className="w-full h-12 flex items-center justify-center bg-surface-2 hover:bg-surface-3 text-primary-color border border-surface-strong rounded-xl font-bold transition"
+                >
+                  Return to Dashboard
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(appState === 'ALEX_SPEAKING' || appState === 'PROCESSING' || appState === 'USER_TURN' || appState === 'CODING_PHASE') && (
+          <div className="flex-1 flex gap-4 min-w-0 max-w-[1600px] mx-auto w-full h-full pb-4">
+            {/* Left Panel: Alex */}
+            {(!isCodingPhaseRef.current || appState !== 'CODING_PHASE') && (
+              <div className="flex-1 min-w-[300px] max-w-[400px] hidden md:flex flex-col gap-4">
+                <AlexPanel
+                  state={avatarState}
+                  alexText={alexText}
+                  jobRole={jobRole}
+                  onReplayAlex={handleReplayAlex}
+                  isSpeaking={isSpeaking}
+                  className="h-[55%]"
+                />
+                <ConversationStream turns={conversationTurns} className="h-[45%]" />
+              </div>
+            )}
+
+            {/* Middle/Main Panel: Candidate or Coding */}
+            <div className="flex-[2] min-w-0 flex flex-col h-full gap-4 relative">
+              {appState === 'CODING_PHASE' && codingChallengeData ? (
+                <div className="flex-1 glass-card overflow-hidden relative shadow-lg">
+                  {/* Floating PiP Alex during coding */}
+                  <div className="absolute bottom-4 right-4 z-50 w-64 shadow-2xl rounded-xl overflow-hidden border border-surface">
+                    <AlexPanel
+                      state={avatarState}
+                      alexText={alexText}
+                      jobRole={jobRole}
+                      isSpeaking={isSpeaking}
+                      className="h-auto border-none shadow-none"
+                    />
+                  </div>
+                  
+                  <CodingChallenge
+                    questionId={codingChallengeData.question_id}
+                    index={codingChallengeData.index}
+                    total={codingChallengeData.total}
+                    title={codingChallengeData.title}
+                    description={codingChallengeData.description}
+                    initialCode={codingChallengeData.starter_code}
+                    language={codingChallengeData.language}
+                    examples={codingChallengeData.examples}
+                    timeLimitSeconds={codingChallengeData.time_limit_seconds}
+                    onSubmitCode={handleSubmitCode}
+                    onCopyPasteDetected={handleCopyPasteDetected}
+                  />
+
+                  {/* Coding Submission Overlay */}
+                  {codingSubmissionResult && (
+                    <div className="absolute inset-0 bg-surface-0/80 backdrop-blur-sm flex items-center justify-center z-[60] p-6">
+                      <div className="bg-surface-1 border border-surface p-8 rounded-2xl max-w-lg w-full shadow-2xl">
+                        <h3 className="text-xl font-bold text-primary-color mb-2">
+                          {codingSubmissionResult.passed ? '✅ Submission Processed' : '❌ Tests Failed'}
+                        </h3>
+                        <div className="bg-surface-2 p-4 rounded-xl border border-surface mb-6 mt-4 text-sm text-secondary-color">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-primary-500 block mb-1">Alex&apos;s Feedback</span>
+                          {codingSubmissionResult.feedback}
+                        </div>
+                        
+                        {codingSubmissionResult.nextChallenge ? (
+                           <button
+                             onClick={() => {
+                               const chal = codingSubmissionResult.nextChallenge;
+                               setCodingChallengeData({
+                                 question_id: chal.id,
+                                 index: chal.index,
+                                 total: chal.total,
+                                 title: chal.title,
+                                 description: chal.description,
+                                 starter_code: chal.starter_code,
+                                 language: chal.language,
+                                 examples: chal.examples,
+                                 time_limit_seconds: chal.time_limit_seconds
+                               });
+                               setCodingSubmissionResult(null);
+                             }}
+                             className="w-full h-12 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl transition shadow-glow-primary"
+                           >
+                             Next Question →
+                           </button>
+                        ) : (
+                           <button
+                             onClick={() => {
+                               setCodingSubmissionResult(null);
+                               isCodingPhaseRef.current = false;
+                               setCodingChallengeData(null);
+                               setAppState('ALEX_SPEAKING');
+                             }}
+                             className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-glow-accent"
+                           >
+                             Complete Coding Assessment
+                           </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <CandidatePanel
+                  candidateName={candidateName}
+                  appState={appState}
+                  isListening={isListening}
+                  interimTranscript={interimTranscript}
+                  eyeContactScore={eyeContactScore}
+                  stabilityScore={stabilityScore}
+                  cameraActive={cameraActive}
+                  sttError={sttError}
+                  videoRef={attachStream}
+                  onTranscriptChange={setInterimTranscript}
+                  onToggleSpeak={handleToggleSpeak}
+                  onSubmitAnswer={() => {
+                    if (submitAnswerRef.current) {
+                      submitAnswerRef.current(interimTranscript);
+                    }
+                  }}
+                  className="h-full shadow-lg"
+                />
+              )}
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }

@@ -2,17 +2,23 @@ import json
 import asyncio
 import base64
 import os
-import httpx
 import logging
 import uuid
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from rest_framework_simplejwt.tokens import AccessToken
+from channels.db import database_sync_to_async
+import json
+import logging
+import random
 from django.contrib.auth import get_user_model
-from apps.sessions.models import InterviewSession
-from apps.analysis.services.question_generator import InterviewQuestionGenerator
-from apps.analysis.services.answer_evaluator import StrictAnswerEvaluator
+from apps.sessions.models import InterviewSession, QuestionBank, ProctoringEvent
+from .services.question_generator import InterviewQuestionGenerator
+from .services.level_detector import CandidateLevelDetector
+from .services.answer_evaluator import StrictAnswerEvaluator
+from .data.coding_questions import CODING_QUESTIONS
 from apps.analysis.services.level_detector import CandidateLevelDetector
+from apps.analysis.services.code_runner import OneCompilerRunner
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -161,17 +167,78 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
                 await self.trigger_session_analysis()
             else:
                 # 4b. Generate next question
-                try:
-                    next_question = await database_sync_to_async(self.generator.generate_next_question)(
-                        session=self.session,
-                        last_answer=transcript
-                    )
-                except Exception as e:
-                    logger.warning(f"LLM generation failed: {e}. Falling back to QuestionBank.")
-                    next_question = await database_sync_to_async(self._pick_from_question_bank)()
+                if self.session.questions_asked_count == 6:
+                    # Inject coding challenge
+                    import random
+                    
+                    selected_qs = []
+                    
+                    if getattr(self.session, 'used_resume', False) and getattr(self.session, 'resume_highlights', None):
+                        from apps.analysis.services.coding_question_generator import CodingQuestionGenerator
+                        generator = CodingQuestionGenerator()
+                        level_data = await database_sync_to_async(self.level_detector.detect)(self.session)
+                        candidate_level = level_data.get('level', 'mid')
+                        
+                        try:
+                            resume_q = await database_sync_to_async(generator.generate_challenge)(
+                                self.session.resume_highlights, candidate_level
+                            )
+                            if resume_q and 'id' in resume_q:
+                                resume_q['test_cases'] = resume_q.get('examples', [])
+                                selected_qs = [resume_q]
+                        except Exception as e:
+                            logger.error(f"Failed to generate coding challenge from resume: {e}")
+                    
+                    if not selected_qs:
+                        lang = random.choice(['Python', 'C', 'Java'])
+                        selected_qs = random.sample(CODING_QUESTIONS[lang], min(4, len(CODING_QUESTIONS[lang])))
+                        
+                    self.session.coding_questions_asked = selected_qs
+                    self.session.coding_current_index = 0
+                    await database_sync_to_async(self.session.save)()
+                    
+                    q = selected_qs[0]
+                    
+                    # 1. Spoken introduction (voice only, brief)
+                    await self.send_json({
+                        'type': 'alex_speaking',
+                        'text': "Let's move to the coding section. You'll see the first problem on the right side of your screen. Take your time.",
+                        'is_complete': False,
+                        'expression': 'encouraging',
+                        'exchange_count': self.session.questions_asked_count
+                    })
 
-                await self._save_question(next_question)
-                emotion = self._pick_emotion(evaluation)
+                    # 2. Structured coding challenge payload (drives the editor panel)
+                    await asyncio.sleep(1.0)
+                    await self.send_json({
+                        'type': 'coding_challenge',
+                        'challenge': {
+                            'id': q['id'],
+                            'index': 1,
+                            'total': len(selected_qs),
+                            'title': q['title'],
+                            'difficulty': q['difficulty'],
+                            'language': q['language'],
+                            'description': q['description'],
+                            'examples': q.get('test_cases', q.get('examples', [])),
+                            'starter_code': q['starter_code'],
+                            'time_limit_seconds': 300
+                        }
+                    })
+                    return
+
+                else:
+                    try:
+                        next_question = await database_sync_to_async(self.generator.generate_next_question)(
+                            session=self.session,
+                            last_answer=transcript
+                        )
+                    except Exception as e:
+                        logger.warning(f"LLM generation failed: {e}. Falling back to QuestionBank.")
+                        next_question = await database_sync_to_async(self._pick_from_question_bank)()
+
+                    await self._save_question(next_question)
+                    emotion = self._pick_emotion(evaluation)
 
             # 5. Send output
             await self.send_json({
@@ -193,6 +260,117 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
                 'text': "It was really great talking with you today! I'm compiling your interview report now...",
                 'is_complete': True,
                 'exchange_count': self.session.questions_asked_count
+            })
+
+        elif msg_type == 'tab_switch_detected':
+            await self._handle_proctoring_event('tab_switch')
+            if self.session.tab_switch_count >= 2:
+                await self.send_json({
+                    'type': 'interview_terminated',
+                    'reason': 'tab_switching'
+                })
+
+        elif msg_type == 'copy_paste_detected':
+            await self._handle_proctoring_event('paste')
+
+        elif msg_type == 'submit_code':
+            code = content.get('code', '')
+            language = content.get('language', '')
+            challenge_id = content.get('challenge_id', '')
+            
+            # Append test_case for generated questions if applicable
+            code_to_run = code
+            qs = self.session.coding_questions_asked or []
+            challenge = next((q for q in qs if q.get('id') == challenge_id), None)
+            if challenge and challenge.get('test_case'):
+                # For languages like Java/C, appending at the end might be invalid if it contains class/main outside. 
+                # But we will trust the LLM to format the test_case properly or have put tests in starter_code.
+                code_to_run = code + "\n\n" + challenge['test_case']
+            
+            # Run code against OneCompiler
+            runner = OneCompilerRunner()
+            run_result = await database_sync_to_async(runner.run_code)(
+                source_code=code_to_run,
+                language=language,
+                stdin=""
+            )
+            passed = run_result.get('status') == 'success'
+            stdout = run_result.get('stdout', '') or ''
+            stderr = run_result.get('stderr', '') or run_result.get('compile_output', '') or ''
+            
+            # Simple prompt to LLM to evaluate code
+            prompt = f"""Evaluate this {language} code for question {challenge_id}.
+Code:
+{code}
+Stdout:
+{stdout}
+Stderr:
+{stderr}
+Give short, spoken feedback as an interviewer (2-3 sentences max)."""
+            feedback = await database_sync_to_async(self.generator.llm.generate)(
+                prompt=prompt,
+                system_prompt="You are Alex, an AI technical interviewer. Give concise spoken feedback."
+            )
+            
+            # Save the submission
+            await self._save_coding_submission(challenge_id, code, language, feedback)
+            
+            idx = self.session.coding_current_index
+            qs = self.session.coding_questions_asked
+            
+            next_challenge = None
+            if idx + 1 < len(qs):
+                self.session.coding_current_index += 1
+                await database_sync_to_async(self.session.save)()
+                
+                next_q = qs[self.session.coding_current_index]
+                next_challenge = {
+                    'id': next_q['id'],
+                    'index': self.session.coding_current_index + 1,
+                    'total': len(qs),
+                    'title': next_q['title'],
+                    'difficulty': next_q['difficulty'],
+                    'language': next_q['language'],
+                    'description': next_q['description'],
+                    'examples': next_q.get('test_cases', next_q.get('examples', [])),
+                    'starter_code': next_q['starter_code'],
+                    'time_limit_seconds': 300
+                }
+            else:
+                self.session.questions_asked_count += 1
+                await database_sync_to_async(self.session.save)()
+                
+                # Pick a normal conversational question since coding is done
+                try:
+                    next_question = await database_sync_to_async(self.generator.generate_next_question)(
+                        session=self.session,
+                        last_answer=f"I have completed the coding challenge. The result was: {passed}"
+                    )
+                except Exception as e:
+                    logger.warning(f"LLM generation failed: {e}. Falling back to QuestionBank.")
+                    next_question = await database_sync_to_async(self._pick_from_question_bank)()
+
+                await self._save_question(next_question)
+                
+                # We need to send this to the frontend so Alex continues the interview
+                # Note: We send it slightly delayed to let the submission_result modal show up
+                async def send_delayed_next_q():
+                    await asyncio.sleep(2.0)
+                    await self.send_json({
+                        'type': 'alex_speaking',
+                        'text': next_question,
+                        'is_complete': False,
+                        'expression': 'impressed',
+                        'exchange_count': self.session.questions_asked_count
+                    })
+                
+                asyncio.create_task(send_delayed_next_q())
+                
+            await self.send_json({
+                'type': 'submission_result',
+                'passed': passed,
+                'feedback': feedback,
+                'next_challenge': next_challenge
             })
 
     def _pick_emotion(self, evaluation):
@@ -250,8 +428,10 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
             session.interview_phase = 'intro'
         elif count < 5:
             session.interview_phase = 'behavioral'
-        elif count < 8:
+        elif count < 7:
             session.interview_phase = 'technical'
+        elif count < 9:
+            session.interview_phase = 'coding'
         elif count < 10:
             session.interview_phase = 'situational'
         else:
@@ -323,3 +503,27 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
             'expression': expression,
             'exchange_count': self.session.questions_asked_count
         })
+
+    @database_sync_to_async
+    def _handle_proctoring_event(self, event_type):
+        ProctoringEvent.objects.create(
+            session=self.session,
+            event_type=event_type
+        )
+        if event_type == 'tab_switch':
+            self.session.tab_switch_count += 1
+            if self.session.tab_switch_count >= 2:
+                self.session.status = InterviewSession.Status.DISQUALIFIED
+            self.session.save(update_fields=['tab_switch_count', 'status', 'updated_at'])
+
+    @database_sync_to_async
+    def _save_coding_submission(self, question_id, code, language, feedback):
+        subs = self.session.coding_submissions or []
+        subs.append({
+            'question_id': question_id,
+            'code': code,
+            'language': language,
+            'feedback': feedback
+        })
+        self.session.coding_submissions = subs
+        self.session.save(update_fields=['coding_submissions', 'updated_at'])

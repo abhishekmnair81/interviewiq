@@ -1,0 +1,201 @@
+/* ============================================================
+   InterviewIQ — Design Token System
+   tokens.css — Single source of truth for all design values.
+   These variables drive both Tailwind config AND raw CSS.
+   ============================================================ */
+
+:root {
+  /* ── Brand / Primary (Indigo-Violet) ─────────────────────── */
+  --color-primary-50:  hsl(239, 100%, 97%);
+  --color-primary-100: hsl(236, 100%, 94%);
+  --color-primary-200: hsl(238, 95%, 88%);
+  --color-primary-300: hsl(237, 87%, 79%);
+  --color-primary-400: hsl(239, 82%, 71%);
+  --color-primary-500: hsl(239, 84%, 67%);
+  --color-primary-600: hsl(243, 75%, 59%);
+  --color-primary-700: hsl(245, 58%, 51%);
+  --color-primary-800: hsl(244, 55%, 41%);
+  --color-primary-900: hsl(244, 55%, 35%);
+  --color-primary-950: hsl(244, 60%, 20%);
+
+  /* ── Accent (Emerald — success, ready, pass) ─────────────── */
+  --color-accent-100: hsl(152, 76%, 92%);
+  --color-accent-200: hsl(154, 75%, 82%);
+  --color-accent-300: hsl(156, 72%, 67%);
+  --color-accent-400: hsl(158, 64%, 52%);
+  --color-accent-500: hsl(160, 84%, 39%);
+  --color-accent-600: hsl(161, 94%, 30%);
+
+  /* ── Warning (Amber — time < 60s, listening) ─────────────── */
+  --color-warning-100: hsl(48, 96%, 89%);
+  --color-warning-200: hsl(46, 97%, 77%);
+  --color-warning-400: hsl(43,  96%, 56%);
+  --color-warning-500: hsl(38,  92%, 50%);
+  --color-warning-600: hsl(32,  95%, 44%);
+
+  /* ── Error (Rose — tab switch, disqualified, fail) ───────── */
+  --color-error-100: hsl(356, 100%, 94%);
+  --color-error-200: hsl(353,  96%, 87%);
+  --color-error-400: hsl(351,  91%, 63%);
+  --color-error-500: hsl(347,  77%, 50%);
+  --color-error-600: hsl(343,  80%, 42%);
+
+  /* ── Info (Sky — tips, tooltips, hints) ──────────────────── */
+  --color-info-100: hsl(204,100%, 92%);
+  --color-info-400: hsl(199,  89%, 48%);
+  --color-info-500: hsl(201,  90%, 40%);
+
+  /* ── Signal (Neon/Cyan — AI active/listening/processing) ─── */
+  --color-signal-100: hsl(190, 100%, 90%);
+  --color-signal-300: hsl(190, 100%, 70%);
+  --color-signal-400: hsl(190, 100%, 50%);
+  --color-signal-500: hsl(190, 100%, 40%);
+  --color-signal-600: hsl(190, 100%, 30%);
+
+
+  /* ── Neutral Scale (Slate) ───────────────────────────────── */
+  --color-neutral-50:  hsl(210, 40%, 98%);
+  --color-neutral-100: hsl(210, 40%, 96%);
+  --color-neutral-200: hsl(214, 32%, 91%);
+  --color-neutral-300: hsl(213, 27%, 84%);
+  --color-neutral-400: hsl(215, 20%, 65%);
+  --color-neutral-500: hsl(215, 16%, 47%);
+  --color-neutral-600: hsl(215, 19%, 35%);
+  --color-neutral-700: hsl(215, 25%, 27%);
+  --color-neutral-800: hsl(217, 33%, 17%);
+  --color-neutral-900: hsl(222, 47%, 11%);
+  --color-neutral-950: hsl(229, 57%,  6%);
+
+  /* ── Surfaces (Light Mode) ───────────────────────────────── */
+  --surface-0:       var(--color-neutral-50);
+  --surface-1:       #ffffff;
+  --surface-2:       var(--color-neutral-100);
+  --surface-3:       var(--color-neutral-200);
+  --surface-border:  rgba(0, 0, 0, 0.08);
+  --surface-border-strong: rgba(0, 0, 0, 0.14);
+  --glass-surface-1: rgba(255, 255, 255, 0.7);
+  --glass-surface-2: rgba(255, 255, 255, 0.85);
+
+  /* ── Texture / Noise ─────────────────────────────────────── */
+  --noise-pattern: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+
+
+  /* ── Semantic Text Colors (Light Mode) ───────────────────── */
+  --text-primary:   var(--color-neutral-900);
+  --text-secondary: var(--color-neutral-600);
+  --text-muted:     var(--color-neutral-400);
+  --text-inverse:   #ffffff;
+  --text-brand:     var(--color-primary-600);
+  --text-accent:    var(--color-accent-600);
+  --text-warning:   var(--color-warning-600);
+  --text-error:     var(--color-error-500);
+
+  /* ── Typography Scale ────────────────────────────────────── */
+  --text-display: clamp(2.75rem, 6vw, 4.5rem);   /* 44–72px */
+  --text-h1:      clamp(1.875rem, 4vw, 2.5rem);  /* 30–40px */
+  --text-h2:      clamp(1.375rem, 3vw, 1.75rem); /* 22–28px */
+  --text-h3:      1.125rem;                       /* 18px    */
+  --text-body-lg: 1rem;                           /* 16px    */
+  --text-body:    0.875rem;                       /* 14px    */
+  --text-sm:      0.8125rem;                      /* 13px    */
+  --text-xs:      0.6875rem;                      /* 11px    */
+  --text-mono:    0.875rem;                       /* 14px — JetBrains Mono */
+
+  --font-sans: 'Inter', 'system-ui', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* ── Spacing (8pt grid) ──────────────────────────────────── */
+  --space-1:   0.25rem;  /* 4px  */
+  --space-2:   0.5rem;   /* 8px  */
+  --space-3:   0.75rem;  /* 12px */
+  --space-4:   1rem;     /* 16px */
+  --space-5:   1.25rem;  /* 20px */
+  --space-6:   1.5rem;   /* 24px */
+  --space-7:   1.75rem;  /* 28px */
+  --space-8:   2rem;     /* 32px */
+  --space-10:  2.5rem;   /* 40px */
+  --space-12:  3rem;     /* 48px */
+  --space-14:  3.5rem;   /* 56px */
+  --space-16:  4rem;     /* 64px */
+  --space-20:  5rem;     /* 80px */
+  --space-24:  6rem;     /* 96px */
+
+  /* ── Border Radius ───────────────────────────────────────── */
+  --radius-sm:   0.375rem;   /* 6px  */
+  --radius-md:   0.625rem;   /* 10px */
+  --radius-lg:   1rem;       /* 16px */
+  --radius-xl:   1.5rem;     /* 24px */
+  --radius-2xl:  2rem;       /* 32px */
+  --radius-full: 9999px;
+
+  /* ── Shadows ─────────────────────────────────────────────── */
+  --shadow-xs:  0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md:  0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-lg:  0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-xl:  0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.15);
+
+  /* Glow shadows — brand identity */
+  --shadow-glow-primary: 0 0 0 3px rgba(99, 102, 241, 0.25), 0 4px 14px rgba(99, 102, 241, 0.2);
+  --shadow-glow-accent:  0 0 0 3px rgba(16, 185, 129, 0.25), 0 4px 14px rgba(16, 185, 129, 0.2);
+  --shadow-glow-error:   0 0 0 3px rgba(239, 68, 68, 0.25),  0 4px 14px rgba(239, 68, 68, 0.2);
+  --shadow-glow-warning: 0 0 0 3px rgba(245, 158, 11, 0.25), 0 4px 14px rgba(245, 158, 11, 0.2);
+  --shadow-glow-signal:  0 0 0 3px rgba(0, 255, 255, 0.25), 0 4px 14px rgba(0, 255, 255, 0.2);
+
+  /* ── Transitions ─────────────────────────────────────────── */
+  --transition-fast:   150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-normal: 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-slow:   300ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-page:   400ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Z-Index Scale ───────────────────────────────────────── */
+  --z-base:    0;
+  --z-raised:  10;
+  --z-dropdown: 100;
+  --z-sticky:  200;
+  --z-modal:   300;
+  --z-toast:   400;
+  --z-overlay: 500;
+
+  /* ── Layout ──────────────────────────────────────────────── */
+  --sidebar-width:          240px;
+  --sidebar-width-collapsed: 64px;
+  --topbar-height:          56px;
+  --container-sm:   640px;
+  --container-md:   768px;
+  --container-lg:  1024px;
+  --container-xl:  1280px;
+  --container-2xl: 1536px;
+}
+
+/* ── DARK MODE OVERRIDES ────────────────────────────────────── */
+.dark {
+  /* Surfaces */
+  --surface-0:       hsl(229, 57%, 5%);
+  --surface-1:       hsl(228, 50%, 8%);
+  --surface-2:       hsl(228, 43%, 11%);
+  --surface-3:       hsl(228, 38%, 15%);
+  --surface-border:  rgba(255, 255, 255, 0.07);
+  --surface-border-strong: rgba(255, 255, 255, 0.13);
+  --glass-surface-1: rgba(13, 17, 28, 0.6);
+  --glass-surface-2: rgba(13, 17, 28, 0.85);
+
+  /* Text */
+  --text-primary:   var(--color-neutral-50);
+  --text-secondary: var(--color-neutral-400);
+  --text-muted:     var(--color-neutral-600);
+  --text-inverse:   var(--color-neutral-900);
+  --text-brand:     var(--color-primary-400);
+  --text-accent:    var(--color-accent-400);
+  --text-warning:   var(--color-warning-400);
+  --text-error:     var(--color-error-400);
+
+  /* Shadows become deeper in dark mode */
+  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md:  0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-lg:  0 10px 20px rgba(0, 0, 0, 0.5);
+  --shadow-xl:  0 20px 40px rgba(0, 0, 0, 0.6);
+  --shadow-glow-primary: 0 0 0 3px rgba(129, 140, 248, 0.3), 0 4px 20px rgba(99, 102, 241, 0.35);
+  --shadow-glow-signal:  0 0 0 3px rgba(0, 255, 255, 0.3), 0 4px 20px rgba(0, 255, 255, 0.35);
+}

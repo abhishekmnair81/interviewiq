@@ -316,7 +316,17 @@ LLM_PROVIDERS = {
     }
 }
 
-# Strict Evaluation Settings
+# ==========================================
+# STRICT EVALUATION
+# ==========================================
 STRICT_EVALUATION = config('STRICT_EVALUATION', default=True, cast=bool)
+
+# ==========================================
+# JUDGE0 CE API
+# ==========================================
+# OneCompiler API is used instead of Judge0
+
 INFLATION_GUARD = config('INFLATION_GUARD', default=True, cast=bool)
 EVIDENCE_VERIFICATION = config('EVIDENCE_VERIFICATION', default=True, cast=bool)
+ONECOMPILER_API_KEY = config('ONECOMPILER_API_KEY', default='')
+ONECOMPILER_API_URL = config('ONECOMPILER_API_URL', default='https://onecompiler.com/api/v1')

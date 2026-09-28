@@ -14,6 +14,8 @@ Your personality:
 - You ask one question at a time, never stack multiple questions
 - You adapt difficulty based on the candidate's performance
 
+{resume_context}
+
 Current interview state:
 - Phase: {phase} (intro/behavioral/technical/situational/closing)
 - Questions asked so far: {count}
@@ -50,9 +52,22 @@ Rules:
     def generate_next_question(self, session, last_answer=None):
         history = self._format_history(session.conversation_history or [])
 
+        resume_context = ""
+        if getattr(session, 'used_resume', False) and getattr(session, 'resume_highlights', None):
+            import json
+            highlights_str = json.dumps(session.resume_highlights, indent=2)
+            resume_context = (
+                "Candidate's Resume Highlights:\n"
+                f"{highlights_str}\n\n"
+                "CRITICAL INSTRUCTION: EVERY question you ask MUST directly reference a specific item from the candidate's resume above (a named project, a listed skill/technology, a specific past employer/role, or a gap).\n"
+                "Do NOT ask generic role-default behavioral questions. Any behavioral angle MUST be tied to a specific resume item.\n"
+                "Even for the very first opening question, reference a specific project or role from their resume to welcome them."
+            )
+
         prompt = self.SYSTEM_PROMPT.format(
             job_role=session.job_role or "Software Engineer",
             experience_level=session.difficulty or "mid-level",
+            resume_context=resume_context,
             phase=session.interview_phase,
             count=session.questions_asked_count,
             topics=", ".join(session.topics_covered) if session.topics_covered else "none yet",

@@ -15,6 +15,38 @@ export interface SocketMessage {
   exchange_count?: number;
   message?: string;
   session_id?: string;
+  // Coding phase properties
+  question_id?: string;
+  title?: string;
+  description?: string;
+  starter_code?: string;
+  language?: string;
+  // Coding challenge envelope
+  challenge?: {
+    id: string;
+    index: number;
+    total: number;
+    title: string;
+    description: string;
+    starter_code: string;
+    language: string;
+    examples: Array<{ input: string; expected_output: string }>;
+    time_limit_seconds: number;
+  };
+  // Submission result
+  passed?: boolean;
+  feedback?: string;
+  next_challenge?: {
+    id: string;
+    index: number;
+    total: number;
+    title: string;
+    description: string;
+    starter_code: string;
+    language: string;
+    examples: Array<{ input: string; expected_output: string }>;
+    time_limit_seconds: number;
+  };
 }
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -125,13 +157,19 @@ export function useInterviewSocket(optionsOrSessionId?: string | null | UseInter
     } catch {
       setConnectionStatus('error');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSessionId, optionsOrSessionId]);
 
-  const sendTranscript = useCallback((text: string) => {
+  const sendTranscript = useCallback((text: string | object) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const payload = { type: 'user_spoke', transcript: text };
-      wsRef.current.send(JSON.stringify(payload));
-      backupToSessionStorage(payload);
+      if (typeof text === 'string') {
+        const payload = { type: 'user_spoke', transcript: text };
+        wsRef.current.send(JSON.stringify(payload));
+        backupToSessionStorage(payload as SocketMessage);
+      } else {
+        wsRef.current.send(JSON.stringify(text));
+        backupToSessionStorage(text as SocketMessage);
+      }
     }
   }, []);
 

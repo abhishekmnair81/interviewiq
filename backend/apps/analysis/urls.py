@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import AnalysisPipelineLogViewSet, NeuralTTSView
+from .views import AnalysisPipelineLogViewSet, NeuralTTSView, CodeRunView
 from .did_views import DIDStreamView, DIDSdpView, DIDIceView, DIDSpeakView, DIDCloseView
 
 router = DefaultRouter()
@@ -11,6 +11,9 @@ urlpatterns = [
 
     # Neural Speech Synthesis (Edge / OpenAI)
     path('tts/speak/', NeuralTTSView.as_view(), name='neural-tts'),
+
+    # Code Execution
+    path('code/run/', CodeRunView.as_view(), name='code-run'),
 
     # D-ID Live Photorealistic WebRTC Video Streaming
     path('avatar/stream/', DIDStreamView.as_view(), name='did-stream-create'),

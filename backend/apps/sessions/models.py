@@ -41,9 +41,11 @@ class InterviewSession(models.Model):
 
     class Status(models.TextChoices):
         QUEUED = 'queued', 'Queued'
+        ACTIVE = 'active', 'Active'
         PROCESSING = 'processing', 'Processing'
         DONE = 'done', 'Done'
         FAILED = 'failed', 'Failed'
+        DISQUALIFIED = 'disqualified', 'Disqualified'
 
     class QuestionCategory(models.TextChoices):
         HR = 'hr', 'HR'
@@ -91,6 +93,7 @@ class InterviewSession(models.Model):
             ('intro', 'Introduction'),
             ('behavioral', 'Behavioral'),
             ('technical', 'Technical'),
+            ('coding', 'Coding'),
             ('situational', 'Situational'),
             ('closing', 'Closing'),
         ],
@@ -100,6 +103,11 @@ class InterviewSession(models.Model):
     topics_covered = models.JSONField(default=list, blank=True)
     candidate_strengths = models.JSONField(default=list, blank=True)
     candidate_weaknesses = models.JSONField(default=list, blank=True)
+    
+    tab_switch_count = models.PositiveIntegerField(default=0)
+    coding_submissions = models.JSONField(default=list, blank=True)
+    coding_questions_asked = models.JSONField(default=list, blank=True)
+    coding_current_index = models.PositiveIntegerField(default=0)
 
     status = models.CharField(
         max_length=20,
@@ -109,6 +117,10 @@ class InterviewSession(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    resume_text = models.TextField(blank=True, null=True)
+    resume_highlights = models.JSONField(blank=True, null=True)
+    used_resume = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'interview_sessions'
@@ -193,3 +205,13 @@ class UserQuestionHistory(models.Model):
 
     def __str__(self):
         return f'{self.user} ← {self.question_bank.text[:40]} ({self.served_at.date()})'
+
+class ProctoringEvent(models.Model):
+    session = models.ForeignKey(InterviewSession, on_delete=models.CASCADE)
+    event_type = models.CharField(max_length=50)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'proctoring_events'
+        ordering = ['-timestamp']
