@@ -5,7 +5,7 @@
  */
 
 import type { Metadata, Viewport } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono, Outfit } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
@@ -22,6 +22,13 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
   variable: '--font-mono',
   weight: ['400', '500', '700'],
+});
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-display',
+  weight: ['500', '600', '700', '800', '900'],
 });
 
 export const metadata: Metadata = {
@@ -68,7 +75,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${jetbrainsMono.variable}`}
+      className={`${inter.variable} ${jetbrainsMono.variable} ${outfit.variable}`}
     >
       <body className="font-sans bg-surface-0 text-primary-color antialiased">
         {/* Accessibility: skip to main content */}

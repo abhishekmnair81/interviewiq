@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { Download, ArrowLeft, Mic, AlertTriangle, Target, Check, X, FileText, Brain } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
+import FullScreenLoader from '@/components/FullScreenLoader';
 
 interface Report {
   id: string;
@@ -155,11 +156,7 @@ export default function ReportPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen-dvh bg-surface-0 flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-surface-2 border-t-primary-500 rounded-full animate-spin" />
-      </div>
-    );
+    return <FullScreenLoader />;
   }
 
   if (error || !report) {

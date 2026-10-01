@@ -50,6 +50,7 @@ export interface AlexPanelProps {
   jobRole: string;
   onReplayAlex?: () => void;
   isSpeaking?: boolean;
+  hideSpeech?: boolean;
   className?: string;
 }
 
@@ -59,6 +60,7 @@ export function AlexPanel({
   jobRole,
   onReplayAlex,
   isSpeaking = false,
+  hideSpeech = false,
   className,
 }: AlexPanelProps) {
   const config = STATE_CONFIGS[state] ?? STATE_CONFIGS.idle;
@@ -135,6 +137,7 @@ export function AlexPanel({
       </div>
 
       {/* Speech bubble */}
+      {!hideSpeech && (
       <div className="flex-shrink-0 p-4 border-t border-surface bg-surface-1">
         <div className="flex items-start justify-between gap-2 mb-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-color">
@@ -180,6 +183,7 @@ export function AlexPanel({
           </motion.p>
         </AnimatePresence>
       </div>
+      )}
     </div>
   );
 }

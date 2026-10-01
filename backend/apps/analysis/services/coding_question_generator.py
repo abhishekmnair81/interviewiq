@@ -32,18 +32,23 @@ CRITICAL RULES:
 """
 
     def __init__(self):
-        llm_providers = getattr(settings, 'LLM_PROVIDERS', {})
-        api_key = os.environ.get('GROQ_API_KEY') or llm_providers.get('groq', {}).get('API_KEY')
-        if not api_key:
-            api_key = "test-api-key"
-        self.client = Groq(api_key=api_key.strip("'\""), http_client=httpx.Client(verify=False))
-        self.model = "qwen/qwen3.8-27b"
+        from .llm_client import build_chat_client
+        self.client, self.model = build_chat_client()
 
-    def generate_challenge(self, resume_highlights, difficulty_level):
+    def generate_challenge(self, resume_highlights, difficulty_level, avoid_titles=None):
+        avoid_titles = avoid_titles or []
+        avoid_note = ""
+        if avoid_titles:
+            avoid_note = (
+                "\n\nDo NOT reuse or closely resemble any of these already-asked "
+                f"problem titles: {', '.join(avoid_titles)}. Pick a different aspect "
+                "of the candidate's resume."
+            )
         prompt = (
             f"Candidate Level: {difficulty_level}\n"
             f"Resume Highlights:\n{json.dumps(resume_highlights, indent=2)}\n\n"
-            "Generate a coding challenge tailored to this candidate based on the rules above. Provide ONLY JSON."
+            "Generate a coding challenge tailored to this candidate based on the rules above. "
+            "Provide ONLY JSON." + avoid_note
         )
 
         try:
@@ -70,30 +75,67 @@ CRITICAL RULES:
             raw_content = raw_content.strip()
             
             data = json.loads(raw_content)
-            
-            if data.get("language") not in ["python", "java", "c", "cpp"]:
+
+            if not data.get("title") or not data.get("description"):
+                print("Generated coding challenge missing title/description — discarding.")
+                return None
+
+            if str(data.get("language", "")).lower() not in ["python", "java", "c", "cpp"]:
                 data["language"] = "python"
-                
-            # Best-effort verify reference solution
-            from apps.analysis.services.code_runner import OneCompilerRunner
-            test_runner = OneCompilerRunner()
-            
-            code_to_verify = data.get("reference_solution", "")
-            if data.get("test_case"):
-                code_to_verify += "\n\n" + data["test_case"]
-                
-            run_result = test_runner.run_code(
-                source_code=code_to_verify,
-                language=data["language"],
-                stdin=""
-            )
-            
-            if run_result.get("status") != "success":
-                print(f"Generated coding challenge failed verification: {run_result.get('stderr')}")
-                return None # Fallback to static
-                
+            else:
+                data["language"] = str(data["language"]).lower()
+
+            if not data.get("id"):
+                data["id"] = "resume-coding-1"
+
+            # Best-effort verify the reference solution. Verification is a QUALITY
+            # signal, not a hard gate: a resume-grounded question is more valuable
+            # to the candidate than a generic one, so we keep it even if the probe
+            # run fails. We only drop the auto-appended test_case in that case, so
+            # a broken harness can't wreck the candidate's own submission run.
+            try:
+                from apps.analysis.services.code_runner import OneCompilerRunner
+                test_runner = OneCompilerRunner()
+
+                code_to_verify = data.get("reference_solution", "")
+                if data.get("test_case"):
+                    code_to_verify += "\n\n" + data["test_case"]
+
+                run_result = test_runner.run_code(
+                    source_code=code_to_verify,
+                    language=data["language"],
+                    stdin=""
+                )
+
+                if run_result.get("status") != "success":
+                    print(f"Coding challenge verification failed (keeping question, "
+                          f"dropping test_case): {run_result.get('stderr')}")
+                    data["test_case"] = ""
+            except Exception as ve:
+                print(f"Coding challenge verification skipped due to runner error: {ve}")
+                data["test_case"] = ""
+
             return data
-            
+
         except Exception as e:
             print(f"Error generating coding challenge: {e}")
             return None
+
+    def generate_challenge_set(self, resume_highlights, difficulty_level, count=2):
+        """Generate up to `count` distinct resume-grounded coding challenges.
+
+        Returns a list (possibly empty). Each entry gets a unique id so the
+        frontend can index them. Callers should fall back to the static pool
+        only when this returns an empty list.
+        """
+        challenges = []
+        seen_titles = []
+        for i in range(max(1, count)):
+            ch = self.generate_challenge(resume_highlights, difficulty_level, avoid_titles=seen_titles)
+            if not ch or 'title' not in ch:
+                continue
+            ch['id'] = f"resume-coding-{i + 1}"
+            ch['test_cases'] = ch.get('examples', [])
+            challenges.append(ch)
+            seen_titles.append(ch['title'])
+        return challenges

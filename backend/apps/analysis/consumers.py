@@ -110,9 +110,33 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
         msg_type = content.get('type') or content.get('action')
 
         if msg_type in ['user_ready', 'start']:
-            question = await database_sync_to_async(self.generator.generate_next_question)(
-                session=self.session
-            )
+            if not getattr(self.session, 'used_resume', False) or not getattr(self.session, 'resume_highlights', None):
+                await self.send_json({
+                    'type': 'error',
+                    'reason': 'resume_required',
+                    'message': 'Upload your resume to start a personalized interview.'
+                })
+                await self.close(code=4000)
+                return
+
+            try:
+                question = await database_sync_to_async(self.generator.generate_next_question)(
+                    session=self.session
+                )
+            except ValueError as e:
+                if str(e) == "resume_required":
+                    await self.send_json({
+                        'type': 'error',
+                        'reason': 'resume_required',
+                        'message': 'Upload your resume to start a personalized interview.'
+                    })
+                    await self.close(code=4000)
+                    return
+                raise
+            except Exception as e:
+                logger.warning(f"LLM generation failed for first question: {e}. Falling back to QuestionBank.")
+                question = await database_sync_to_async(self._pick_from_question_bank)()
+
             await self._save_question(question)
             
             await self.send_json({
@@ -168,28 +192,28 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
             else:
                 # 4b. Generate next question
                 if self.session.questions_asked_count == 6:
-                    # Inject coding challenge
+                    # Inject coding challenge — resume-grounded whenever possible.
                     import random
-                    
+
                     selected_qs = []
-                    
+
                     if getattr(self.session, 'used_resume', False) and getattr(self.session, 'resume_highlights', None):
                         from apps.analysis.services.coding_question_generator import CodingQuestionGenerator
                         generator = CodingQuestionGenerator()
                         level_data = await database_sync_to_async(self.level_detector.detect)(self.session)
                         candidate_level = level_data.get('level', 'mid')
-                        
+
                         try:
-                            resume_q = await database_sync_to_async(generator.generate_challenge)(
-                                self.session.resume_highlights, candidate_level
+                            selected_qs = await database_sync_to_async(generator.generate_challenge_set)(
+                                self.session.resume_highlights, candidate_level, 2
                             )
-                            if resume_q and 'id' in resume_q:
-                                resume_q['test_cases'] = resume_q.get('examples', [])
-                                selected_qs = [resume_q]
                         except Exception as e:
-                            logger.error(f"Failed to generate coding challenge from resume: {e}")
-                    
+                            logger.error(f"Failed to generate coding challenges from resume: {e}")
+
                     if not selected_qs:
+                        # Last-resort fallback only when no resume-based question
+                        # could be produced (e.g. non-technical resume / LLM down).
+                        logger.warning("Using static CODING_QUESTIONS fallback — no resume-grounded challenge available.")
                         lang = random.choice(['Python', 'C', 'Java'])
                         selected_qs = random.sample(CODING_QUESTIONS[lang], min(4, len(CODING_QUESTIONS[lang])))
                         
@@ -221,7 +245,7 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
                             'language': q['language'],
                             'description': q['description'],
                             'examples': q.get('test_cases', q.get('examples', [])),
-                            'starter_code': q['starter_code'],
+                            'starter_code': q.get('starter_code', ''),
                             'time_limit_seconds': 300
                         }
                     })
@@ -233,6 +257,12 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
                             session=self.session,
                             last_answer=transcript
                         )
+                    except ValueError as e:
+                        if str(e) == "resume_required":
+                            await self.send_json({'type': 'error', 'reason': 'resume_required', 'message': 'Upload your resume to start a personalized interview.'})
+                            await self.close(code=4000)
+                            return
+                        raise
                     except Exception as e:
                         logger.warning(f"LLM generation failed: {e}. Falling back to QuestionBank.")
                         next_question = await database_sync_to_async(self._pick_from_question_bank)()
@@ -276,12 +306,12 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
         elif msg_type == 'submit_code':
             code = content.get('code', '')
             language = content.get('language', '')
-            challenge_id = content.get('challenge_id', '')
+            question_id = content.get('question_id', '')
             
             # Append test_case for generated questions if applicable
             code_to_run = code
             qs = self.session.coding_questions_asked or []
-            challenge = next((q for q in qs if q.get('id') == challenge_id), None)
+            challenge = next((q for q in qs if q.get('id') == question_id), None)
             if challenge and challenge.get('test_case'):
                 # For languages like Java/C, appending at the end might be invalid if it contains class/main outside. 
                 # But we will trust the LLM to format the test_case properly or have put tests in starter_code.
@@ -299,7 +329,7 @@ class InterviewConsumer(AsyncJsonWebsocketConsumer):
             stderr = run_result.get('stderr', '') or run_result.get('compile_output', '') or ''
             
             # Simple prompt to LLM to evaluate code
-            prompt = f"""Evaluate this {language} code for question {challenge_id}.
+            prompt = f"""Evaluate this {language} code for question {question_id}.
 Code:
 {code}
 Stdout:
@@ -307,13 +337,17 @@ Stdout:
 Stderr:
 {stderr}
 Give short, spoken feedback as an interviewer (2-3 sentences max)."""
-            feedback = await database_sync_to_async(self.generator.llm.generate)(
-                prompt=prompt,
-                system_prompt="You are Alex, an AI technical interviewer. Give concise spoken feedback."
-            )
+            try:
+                feedback = await database_sync_to_async(self.generator.generate_feedback)(
+                    prompt=prompt,
+                    system_prompt="You are Alex, an AI technical interviewer. Give concise spoken feedback."
+                )
+            except Exception as e:
+                logger.warning(f"Feedback generation failed: {e}")
+                feedback = "Good effort! Let's move on."
             
             # Save the submission
-            await self._save_coding_submission(challenge_id, code, language, feedback)
+            await self._save_coding_submission(question_id, code, language, feedback)
             
             idx = self.session.coding_current_index
             qs = self.session.coding_questions_asked
@@ -438,11 +472,105 @@ Give short, spoken feedback as an interviewer (2-3 sentences max)."""
             session.interview_phase = 'closing'
 
     def _pick_from_question_bank(self):
-        # Fallback to a static question from the database
+        # Fallback when the LLM is unavailable. Prefer a resume-grounded question
+        # so Alex NEVER asks something unrelated to the candidate's resume; only
+        # drop to the generic QuestionBank if there is no resume to draw from.
+        resume_q = self._resume_fallback_question()
+        if resume_q:
+            return resume_q
         qb = QuestionBank.objects.filter(is_active=True).order_by('?').first()
         if qb:
             return qb.text
         return "Could you tell me more about your previous experience?"
+
+    def _resume_fallback_question(self):
+        """Build a warm, resume-specific question deterministically (no LLM).
+
+        Walks the parsed resume highlights and skips any item that has already
+        been ASKED about (matched against the text of prior questions in the
+        conversation history) — not just evaluator-derived topics. This is what
+        prevents Alex from repeating the same question when the LLM is down and
+        the evaluator therefore never populates topics_covered.
+        Returns None if there is no usable resume data.
+        """
+        highlights = getattr(self.session, 'resume_highlights', None)
+        if not highlights or not isinstance(highlights, dict):
+            return None
+
+        # Everything Alex has already asked, lower-cased, joined into one blob so
+        # we can cheaply check whether a resume label was already referenced.
+        asked_blob = " ".join(
+            str(m.get('content', '')).lower()
+            for m in (self.session.conversation_history or [])
+            if m.get('role') == 'assistant'
+        )
+        covered = [str(t).lower() for t in (self.session.topics_covered or [])]
+
+        def is_new(label):
+            if not label:
+                return False
+            low = str(label).lower()
+            if low in covered:
+                return False
+            # Skip if this exact item was already named in a prior question.
+            if low in asked_blob:
+                return False
+            return True
+
+        # 1) Projects — reference the concrete tech stack when we have it.
+        for proj in (highlights.get('projects') or []):
+            if isinstance(proj, dict):
+                name = proj.get('name')
+                if is_new(name):
+                    techs = proj.get('technologies') or []
+                    tech_note = (f" I see you used {', '.join(techs[:3])} on it —"
+                                 if techs else "")
+                    return (f"I'd love to hear more about your project \"{name}\".{tech_note} "
+                            f"What was your specific role, and what part are you most proud of?")
+            elif is_new(proj):
+                return (f"I'd love to hear more about your project \"{proj}\". "
+                        f"What was your specific role, and what part are you most proud of?")
+
+        # 2) Experience / roles
+        for exp in (highlights.get('experience') or []):
+            if isinstance(exp, dict):
+                role = exp.get('role') or ''
+                company = exp.get('company') or ''
+                label = (role or company)
+                if is_new(label):
+                    where = f" at {company}" if company else ""
+                    return (f"Tell me about your time as {role}{where}. "
+                            f"What was a challenge you worked through there?")
+            elif is_new(exp):
+                return f"Can you walk me through your experience with {exp}?"
+
+        # 3) Skills
+        for skill in (highlights.get('skills') or []):
+            if is_new(skill):
+                return (f"I see {skill} on your resume. Can you describe a time you "
+                        f"used it to solve a real problem?")
+
+        # 4) Certifications (may be dicts {name, issuer, year}) and keywords.
+        for cert in (highlights.get('certifications') or []):
+            name = cert.get('name') if isinstance(cert, dict) else cert
+            if is_new(name):
+                issuer = cert.get('issuer') if isinstance(cert, dict) else ''
+                from_note = f" from {issuer}" if issuer else ""
+                return (f"You earned the {name} certification{from_note} — what motivated "
+                        f"you to pursue it, and how have you applied it?")
+        for item in (highlights.get('notable_keywords') or []):
+            if is_new(item):
+                return f"Your resume mentions {item} — could you tell me more about that?"
+
+        # Everything has been asked about — rotate through a few distinct
+        # reflective prompts so we still don't repeat verbatim.
+        reflective = [
+            "Looking back over the experience on your resume, which accomplishment are you most proud of, and why?",
+            "Of everything on your resume, which project taught you the most, and what did you take away from it?",
+            "If you could deep-dive into one thing from your resume with our team, what would it be and what makes it exciting to you?",
+        ]
+        asked_count = sum(1 for m in (self.session.conversation_history or []) if m.get('role') == 'assistant')
+        return reflective[asked_count % len(reflective)]
 
     async def trigger_session_analysis(self):
         await database_sync_to_async(self.run_analysis_pipeline)()

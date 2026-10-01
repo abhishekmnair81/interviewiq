@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import Editor from '@monaco-editor/react';
+import React, { useState, useEffect, useRef } from 'react';
+import Editor, { loader } from '@monaco-editor/react';
 import { apiFetch } from '@/lib/api';
+
+loader.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.43.0/min/vs' } });
 
 export interface CodingChallengeProps {
   questionId: string;
@@ -62,6 +64,32 @@ export function CodingChallenge({
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(timeLimitSeconds);
+
+  // Monaco loads its engine from a CDN. If that is slow/blocked (or the editor
+  // fails to lay out inside the flex container), fall back to a plain textarea
+  // so the candidate can ALWAYS see and edit the starter code.
+  const [monacoReady, setMonacoReady] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
+  const editorRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (monacoReady) return;
+    const t = setTimeout(() => {
+      if (!monacoReady) setUseFallback(true);
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [monacoReady]);
+
+  const handleEditorMount = (editor: any) => {
+    editorRef.current = editor;
+    setMonacoReady(true);
+    setUseFallback(false);
+    // Force a layout pass on the next frame — fixes the collapsed/zero-height
+    // editor that can occur when Monaco mounts before the flex box is sized.
+    requestAnimationFrame(() => {
+      try { editor.layout(); } catch {}
+    });
+  };
 
   // Update initialCode when it changes (for next questions)
   useEffect(() => {
@@ -224,26 +252,46 @@ export function CodingChallenge({
           </div>
         </div>
         
-        <div className="flex-1 relative min-h-[400px]" onPaste={handlePaste} onPasteCapture={handlePaste}>
-          <Editor
-            height="100%"
-            language={langMap[selectedLanguage] || 'python'}
-            theme="vs-dark"
-            value={code}
-            onChange={(val) => setCode(val || '')}
-            options={{
-              minimap: { enabled: false },
-              fontSize: 14,
-              fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
-              wordWrap: 'on',
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              lineNumbers: 'on',
-              renderLineHighlight: 'all',
-              cursorBlinking: 'smooth',
-              pasteAs: { enabled: false },
-            }}
-          />
+        <div className="flex-1 relative min-h-[420px] bg-[#1e1e1e]" onPaste={handlePaste} onPasteCapture={handlePaste}>
+          {useFallback ? (
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              spellCheck={false}
+              className="absolute inset-0 w-full h-full resize-none bg-[#1e1e1e] text-slate-100 font-mono text-sm p-4 outline-none border-0 leading-relaxed"
+              style={{ fontFamily: "'Fira Code', 'JetBrains Mono', monospace", tabSize: 4 }}
+            />
+          ) : (
+            <div className="absolute inset-0">
+              <Editor
+                key={selectedLanguage}
+                height="100%"
+                language={langMap[selectedLanguage] || 'python'}
+                theme="vs-dark"
+                value={code}
+                onChange={(val) => setCode(val || '')}
+                onMount={handleEditorMount}
+                loading={
+                  <div className="flex items-center justify-center h-full text-slate-400 text-sm gap-2">
+                    <span className="w-3 h-3 rounded-full border-2 border-slate-400 border-t-transparent animate-spin"></span>
+                    Loading editor…
+                  </div>
+                }
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 14,
+                  fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
+                  wordWrap: 'on',
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  lineNumbers: 'on',
+                  renderLineHighlight: 'all',
+                  cursorBlinking: 'smooth',
+                  pasteAs: { enabled: false },
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
       

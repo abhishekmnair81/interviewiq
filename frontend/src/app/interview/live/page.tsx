@@ -10,12 +10,13 @@ import { useInterviewSocket, FaceReading } from '@/hooks/useInterviewSocket';
 import { useStarAnalyzer } from '@/hooks/useStarAnalyzer';
 import { CodingChallenge } from '@/components/CodingChallenge';
 import { cn } from '@/lib/utils';
+import { Mic, Send } from 'lucide-react';
 import ResumeUpload from '@/components/ResumeUpload';
+import FullScreenLoader from '@/components/FullScreenLoader';
 
 // New design system components
 import { InterviewHeader } from '@/components/interview/InterviewHeader';
 import { AlexPanel } from '@/components/interview/AlexPanel';
-import { CandidatePanel } from '@/components/interview/CandidatePanel';
 import { ConversationStream, type ConversationTurn } from '@/components/interview/ConversationStream';
 import { TabSwitchOverlay, CopyPasteBanner } from '@/components/interview/ProctoringBanner';
 
@@ -295,7 +296,7 @@ export default function LiveInterviewPage() {
           difficulty_level: difficulty,
           candidate_name: candidateName,
           mode: 'live_ai',
-          used_resume: useResume,
+          used_resume: true,
         }),
       });
 
@@ -305,6 +306,11 @@ export default function LiveInterviewPage() {
       const token = localStorage.getItem('access_token');
       connect(res.id, token);
     } catch (err: any) {
+      if (err.reason === 'resume_required' || (err.message && err.message.includes('resume'))) {
+        alert('Upload your resume to start a personalized interview.');
+        router.push('/dashboard#resume-upload');
+        return;
+      }
       alert('Could not start interview session. Please check your network connection.');
       setAppState('SETUP');
     }
@@ -437,7 +443,7 @@ export default function LiveInterviewPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-surface-0 font-sans relative overflow-hidden">
+    <div className="h-screen flex flex-col bg-surface-0 font-sans relative overflow-hidden">
       {/* Proctoring Overlays */}
       <TabSwitchOverlay 
         visible={tabSwitchOverlayVisible} 
@@ -468,7 +474,7 @@ export default function LiveInterviewPage() {
       <main className="flex-1 flex overflow-hidden relative z-10 p-4 sm:p-6 gap-6">
         
         {appState === 'SETUP' && (
-          <div className="w-full max-w-2xl mx-auto my-auto glass-card p-8 shadow-2xl">
+          <div className="w-full max-w-2xl mx-auto my-auto max-h-full overflow-y-auto glass-card p-8 shadow-2xl">
             <div className="flex items-center justify-between border-b border-surface pb-6 mb-8">
               <div>
                 <span className="text-[11px] font-extrabold uppercase tracking-widest text-primary-600 bg-primary-500/10 px-3 py-1 rounded-full mb-3 inline-block">
@@ -562,23 +568,30 @@ export default function LiveInterviewPage() {
                       <ResumeUpload user={profile} onUpdate={setProfile} />
                     </div>
                   )}
-                  {profile?.has_resume && (
-                    <label className="flex items-center gap-3 p-4 border border-surface rounded-xl cursor-pointer hover:bg-surface-2 transition">
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4 text-primary-600 rounded bg-surface-3 border-surface-strong focus:ring-primary-500"
-                        checked={useResume}
-                        onChange={(e) => setUseResume(e.target.checked)}
-                      />
+                  {profile?.has_resume ? (
+                    <div className="flex items-center gap-3 p-4 border border-emerald-500/20 bg-emerald-500/5 rounded-xl">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center text-sm">✨</div>
                       <div className="flex flex-col">
                         <span className="text-sm font-semibold text-primary-color">
-                          Use my uploaded resume to personalize questions
+                          Resume attached automatically
                         </span>
                         <span className="text-xs text-muted-color">
-                          Alex will ask about your specific projects and experience.
+                          Alex will personalize questions based on your specific projects and experience.
                         </span>
                       </div>
-                    </label>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-4 border border-amber-500/20 bg-amber-500/5 rounded-xl">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center text-sm">⚠️</div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-primary-color">
+                          Resume required
+                        </span>
+                        <span className="text-xs text-muted-color">
+                          Please upload your resume to continue.
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -590,8 +603,9 @@ export default function LiveInterviewPage() {
                     ← Back
                   </button>
                   <button
-                    className="flex-[2] h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition shadow-glow-primary"
+                    className="flex-[2] h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition shadow-glow-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={() => setSetupStep(3)}
+                    disabled={!profile?.has_resume}
                   >
                     Continue →
                   </button>
@@ -703,11 +717,7 @@ export default function LiveInterviewPage() {
         {(appState === 'CONNECTING' || appState === 'COMPLETE' || appState === 'TERMINATED') && (
           <div className="w-full max-w-md mx-auto my-auto text-center space-y-6">
             {appState === 'CONNECTING' && (
-              <div className="p-8 glass-card shadow-2xl space-y-4">
-                <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                <h3 className="text-lg font-bold text-primary-color">Connecting to Alex...</h3>
-                <p className="text-xs text-muted-color">Establishing secure WebSocket connection.</p>
-              </div>
+              <FullScreenLoader />
             )}
             
             {appState === 'COMPLETE' && (
@@ -741,12 +751,7 @@ export default function LiveInterviewPage() {
                     View Report →
                   </Link>
                 ) : (
-                  <div className="w-full h-12 flex items-center justify-center bg-surface-2 border border-surface rounded-xl text-sm font-semibold text-primary-color">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                      Analyzing...
-                    </div>
-                  </div>
+                  <FullScreenLoader />
                 )}
               </div>
             )}
@@ -775,36 +780,10 @@ export default function LiveInterviewPage() {
 
         {(appState === 'ALEX_SPEAKING' || appState === 'PROCESSING' || appState === 'USER_TURN' || appState === 'CODING_PHASE') && (
           <div className="flex-1 flex gap-4 min-w-0 max-w-[1600px] mx-auto w-full h-full pb-4">
-            {/* Left Panel: Alex */}
-            {(!isCodingPhaseRef.current || appState !== 'CODING_PHASE') && (
-              <div className="flex-1 min-w-[300px] max-w-[400px] hidden md:flex flex-col gap-4">
-                <AlexPanel
-                  state={avatarState}
-                  alexText={alexText}
-                  jobRole={jobRole}
-                  onReplayAlex={handleReplayAlex}
-                  isSpeaking={isSpeaking}
-                  className="h-[55%]"
-                />
-                <ConversationStream turns={conversationTurns} className="h-[45%]" />
-              </div>
-            )}
-
             {/* Middle/Main Panel: Candidate or Coding */}
             <div className="flex-[2] min-w-0 flex flex-col h-full gap-4 relative">
               {appState === 'CODING_PHASE' && codingChallengeData ? (
                 <div className="flex-1 glass-card overflow-hidden relative shadow-lg">
-                  {/* Floating PiP Alex during coding */}
-                  <div className="absolute bottom-4 right-4 z-50 w-64 shadow-2xl rounded-xl overflow-hidden border border-surface">
-                    <AlexPanel
-                      state={avatarState}
-                      alexText={alexText}
-                      jobRole={jobRole}
-                      isSpeaking={isSpeaking}
-                      className="h-auto border-none shadow-none"
-                    />
-                  </div>
-                  
                   <CodingChallenge
                     questionId={codingChallengeData.question_id}
                     index={codingChallengeData.index}
@@ -870,27 +849,135 @@ export default function LiveInterviewPage() {
                   )}
                 </div>
               ) : (
-                <CandidatePanel
-                  candidateName={candidateName}
-                  appState={appState}
-                  isListening={isListening}
-                  interimTranscript={interimTranscript}
-                  eyeContactScore={eyeContactScore}
-                  stabilityScore={stabilityScore}
-                  cameraActive={cameraActive}
-                  sttError={sttError}
-                  videoRef={attachStream}
-                  onTranscriptChange={setInterimTranscript}
-                  onToggleSpeak={handleToggleSpeak}
-                  onSubmitAnswer={() => {
-                    if (submitAnswerRef.current) {
-                      submitAnswerRef.current(interimTranscript);
-                    }
-                  }}
-                  className="h-full shadow-lg"
-                />
+                <>
+                  {/* Alex — main stage (WhatsApp-style big screen) */}
+                  <div className="relative flex-1 min-h-0">
+                    <AlexPanel
+                      state={avatarState}
+                      alexText={alexText}
+                      jobRole={jobRole}
+                      onReplayAlex={handleReplayAlex}
+                      isSpeaking={isSpeaking}
+                      hideSpeech
+                      className="h-full"
+                    />
+                    {/* Candidate self-view — floating PiP (bottom-right) */}
+                    <div className="absolute bottom-4 right-4 z-20 w-40 sm:w-48 md:w-56 rounded-xl overflow-hidden border border-white/15 shadow-2xl bg-slate-900">
+                      <div className="relative aspect-video">
+                        <video
+                          ref={attachStream}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full object-cover scale-x-[-1]"
+                          aria-label="Your webcam feed"
+                        />
+                        {!cameraActive && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800/90">
+                            <span className="text-lg" aria-hidden="true">📷</span>
+                            <p className="text-[10px] font-bold text-slate-300 mt-1">Camera off</p>
+                          </div>
+                        )}
+                        <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between gap-1">
+                          <span className="text-[9px] font-bold text-white bg-black/50 backdrop-blur px-1.5 py-0.5 rounded-full truncate max-w-[60%]">
+                            {candidateName || 'You'}
+                          </span>
+                          <span className={cn(
+                            'text-[9px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur',
+                            eyeContactScore >= 75 ? 'bg-emerald-500/30 text-emerald-200' : 'bg-rose-500/30 text-rose-200'
+                          )}>
+                            👁 {eyeContactScore}%
+                          </span>
+                        </div>
+                        {isListening && (
+                          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-emerald-500/30 backdrop-blur px-2 py-0.5 rounded-full border border-emerald-400/40">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                            <span className="text-[9px] font-bold text-emerald-100">Listening</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Control row — small rounded mic + send (typing lives in the chat panel) */}
+                  <div className="flex-shrink-0 space-y-2">
+                    {sttError && (
+                      <div className="text-xs font-medium text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-lg" role="alert">
+                        ⚠️ {sttError}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-center gap-4 py-1">
+                      <button
+                        onClick={handleToggleSpeak}
+                        disabled={appState === 'ALEX_SPEAKING' || appState === 'PROCESSING'}
+                        aria-pressed={isListening}
+                        aria-label={isListening ? 'Stop speaking' : 'Start speaking'}
+                        title={isListening ? 'Listening… tap to stop' : 'Tap to speak'}
+                        className={cn(
+                          'w-11 h-11 rounded-full flex items-center justify-center shadow-lg border transition-all',
+                          isListening
+                            ? 'bg-emerald-500 border-emerald-300 text-white animate-pulse scale-105'
+                            : appState === 'USER_TURN'
+                            ? 'bg-white/95 border-white/70 text-slate-800 hover:bg-white hover:scale-105 active:scale-95'
+                            : 'bg-slate-700/60 border-white/10 text-slate-300 cursor-not-allowed opacity-60'
+                        )}
+                      >
+                        <Mic className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        onClick={() => { if (submitAnswerRef.current) submitAnswerRef.current(interimTranscript); }}
+                        disabled={appState === 'ALEX_SPEAKING' || appState === 'PROCESSING'}
+                        aria-label="Submit your answer"
+                        title="Send answer"
+                        className={cn(
+                          'w-11 h-11 rounded-full flex items-center justify-center shadow-lg border transition-all',
+                          appState === 'USER_TURN'
+                            ? 'bg-primary-600 border-primary-500 text-white hover:bg-primary-700 hover:scale-105 active:scale-95 shadow-glow-primary'
+                            : 'bg-slate-700/60 border-white/10 text-slate-300 cursor-not-allowed opacity-60'
+                        )}
+                      >
+                        <Send className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
+            {/* Conversation chat — right column (aligned); typing lives here only */}
+            {appState !== 'CODING_PHASE' && (
+              <div className="hidden lg:flex flex-col gap-3 w-[340px] flex-shrink-0 h-full">
+                <ConversationStream turns={conversationTurns} className="flex-1 min-h-0 w-full" />
+                <div className={cn(
+                  'flex-shrink-0 flex items-center gap-2 rounded-2xl bg-surface-2 border border-surface px-4 py-2.5 shadow-lg transition-opacity',
+                  appState !== 'USER_TURN' && 'opacity-60'
+                )}>
+                  <span className="text-base flex-shrink-0" aria-hidden="true">{isListening ? '🎤' : '💬'}</span>
+                  <input
+                    type="text"
+                    disabled={appState !== 'USER_TURN'}
+                    placeholder={appState === 'USER_TURN' ? 'Type your answer…' : 'Waiting for Alex…'}
+                    value={interimTranscript}
+                    onChange={(e) => setInterimTranscript(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (submitAnswerRef.current) submitAnswerRef.current(interimTranscript);
+                      }
+                    }}
+                    aria-label="Your answer"
+                    className="flex-1 min-w-0 bg-transparent text-primary-color placeholder:text-muted-color text-sm outline-none disabled:cursor-not-allowed"
+                  />
+                  {interimTranscript.trim() && appState === 'USER_TURN' && (
+                    <button
+                      onClick={() => { if (submitAnswerRef.current) submitAnswerRef.current(interimTranscript); }}
+                      aria-label="Send answer"
+                      className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-primary-600 text-white hover:bg-primary-700 active:scale-95 transition-all"
+                    >
+                      <Send className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

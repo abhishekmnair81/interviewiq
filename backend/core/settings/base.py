@@ -293,7 +293,7 @@ LOGGING = {
 # LLM Providers Configuration
 NVIDIA_API_KEY = config('NVIDIA_API_KEY', default='')
 NVIDIA_BASE_URL = config('NVIDIA_BASE_URL', default='https://integrate.api.nvidia.com/v1')
-NVIDIA_MODEL = config('NVIDIA_MODEL', default='meta/llama-3.3-70b-instruct')
+NVIDIA_MODEL = config('NVIDIA_MODEL', default='nvidia/llama-3.1-nemotron-70b-instruct')
 
 # Qwen2.5-Omni Configuration
 QWEN_API_KEY = config('DASHSCOPE_API_KEY', default='')
@@ -306,7 +306,7 @@ DEFAULT_LLM_PROVIDER = config('DEFAULT_LLM_PROVIDER', default='groq')
 LLM_PROVIDERS = {
     'groq': {
         'API_KEY': config('GROQ_API_KEY', default=''),
-        'MODEL': 'llama-3.3-70b-versatile',
+        'MODEL': 'openai/gpt-oss-120b',
         'BASE_URL': 'https://api.groq.com/openai/v1',
     },
     'nvidia': {

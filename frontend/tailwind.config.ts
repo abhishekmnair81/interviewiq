@@ -74,6 +74,7 @@ const config: Config = {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
       },
 
       // ── Border Radius ──────────────────────────────────────────

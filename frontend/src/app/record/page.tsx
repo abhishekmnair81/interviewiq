@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
+import FullScreenLoader from '@/components/FullScreenLoader';
 
 interface Question {
   id: string;
@@ -938,12 +939,7 @@ export default function RecordPage() {
       </footer>
 
       {(callState === 'uploading' || callState === 'processing') && (
-        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-xl flex flex-col items-center justify-center z-50 text-center p-8">
-          <div className="w-20 h-20 relative mb-6">
-            <div className="w-full h-full rounded-full border-4 border-t-indigo-400 border-r-emerald-400 border-b-transparent border-l-transparent animate-spin" />
-          </div>
-          <h3 className="text-3xl font-black text-white mb-2">Compiling Report...</h3>
-        </div>
+        <FullScreenLoader />
       )}
 
       {callState === 'done' && (

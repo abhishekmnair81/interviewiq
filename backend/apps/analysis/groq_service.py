@@ -109,7 +109,18 @@ class AlexInterviewer:
         self.question_count = question_count
 
         import httpx
-        api_key = os.environ.get("GROQ_API_KEY", "dummy_key_for_inheritance")
+        from django.conf import settings as _settings
+        # Read the Groq key from Django settings (loaded from .env via decouple)
+        # first — os.environ is NOT populated by decouple, so the old
+        # os.environ-only lookup always fell back to the dummy key and every
+        # Groq call 401'd. Keep os.environ as a secondary source.
+        api_key = (
+            getattr(_settings, 'LLM_PROVIDERS', {}).get('groq', {}).get('API_KEY')
+            or os.environ.get("GROQ_API_KEY")
+            or "dummy_key_for_inheritance"
+        )
+        if isinstance(api_key, str):
+            api_key = api_key.strip().strip("'\"")
         base_url = "https://api.groq.com/openai/v1"
 
         self.client = OpenAI(
@@ -129,7 +140,7 @@ class AlexInterviewer:
         self.conversation_history: list = []
         self.exchange_count: int = 0
         self.is_complete: bool = False
-        self.model: str = "llama-3.3-70b-versatile"
+        self.model: str = "openai/gpt-oss-120b"
 
         logger.info(
             "AlexInterviewer ready | role=%s category=%s difficulty=%s | agenda=%d questions",
@@ -236,7 +247,7 @@ class AlexInterviewer:
         except Exception as e:
             logger.warning(f"Groq primary model failed ({e}), trying fallback...")
             try:
-                kwargs["model"] = "llama-3.1-8b-instant"
+                kwargs["model"] = "qwen/qwen3.8-27b"
                 response = self.client.chat.completions.create(**kwargs)
                 return response.choices[0].message.content
             except Exception as fallback_err:

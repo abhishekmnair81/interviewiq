@@ -72,12 +72,8 @@ OUTPUT (strict JSON only, no prose before/after):
 """
 
     def __init__(self):
-        llm_providers = getattr(settings, 'LLM_PROVIDERS', {})
-        api_key = os.environ.get('GROQ_API_KEY') or llm_providers.get('groq', {}).get('API_KEY')
-        if not api_key:
-            api_key = "test-api-key"
-        self.client = Groq(api_key=api_key.strip("'\""), http_client=httpx.Client(verify=False))
-        self.model = "qwen/qwen3.8-27b"
+        from .llm_client import build_chat_client
+        self.client, self.model = build_chat_client()
 
     def _sanitize_input(self, answer: str) -> str:
         # Truncate to avoid overwhelming context

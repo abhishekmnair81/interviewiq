@@ -56,6 +56,7 @@
   h1, h2, h3, h4, h5, h6 {
     @apply tracking-tight;
     color: var(--text-primary);
+    font-family: var(--font-display);
   }
 
   p, span, li {
@@ -67,7 +68,6 @@
     font-weight: 600;
   }
 
-  /* ── Scrollbar styling ───────────────────────────── */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -172,13 +172,46 @@
   }
 
   /* ── Buttons — base styles ───────────────────────── */
+  @keyframes btnSpinHighlight {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+
   .btn {
     @apply inline-flex items-center justify-center gap-2;
-    @apply font-semibold cursor-pointer border transition-all;
+    @apply cursor-pointer transition-all;
     @apply select-none whitespace-nowrap;
     border-radius: var(--radius-lg);
     font-family: var(--font-sans);
     transition: all var(--transition-fast);
+
+    /* Dark Glass Base */
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(30,27,50,0.85), rgba(12,10,22,0.92));
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: #e9e7f5;
+    font-weight: 600;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+                inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+                0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    z-index: 1; /* Establishes stacking context */
+  }
+
+  .btn::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200%;
+    height: 300%;
+    background: conic-gradient(from 0deg, transparent 0%, rgba(99,102,241,0.35) 20%, rgba(124,58,237,0.30) 40%, transparent 50%);
+    transform: translate(-50%, -50%);
+    animation: btnSpinHighlight 10s linear infinite;
+    pointer-events: none;
+    z-index: -1;
   }
 
   .btn:focus-visible {
@@ -196,66 +229,70 @@
   .btn-md  { @apply text-sm px-4 py-2;   font-size: 0.875rem; }
   .btn-lg  { @apply text-sm px-6 py-3;   font-size: 0.875rem; font-weight: 700; }
 
-  .btn-primary {
-    background-color: var(--color-primary-600);
-    border-color: var(--color-primary-600);
-    color: white;
-    box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3);
+  /* PRIMARY & GLOW */
+  .btn-primary, .btn-glow {
+    border-color: rgba(99,102,241, 0.4);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15),
+                inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+                0 4px 14px rgba(99,102,241, 0.2);
   }
-  .btn-primary:hover:not(:disabled) {
-    background-color: var(--color-primary-700);
-    border-color: var(--color-primary-700);
-    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+  .btn-primary::before, .btn-glow::before {
+    background: conic-gradient(from 0deg, transparent 0%, rgba(99,102,241,0.6) 20%, rgba(124,58,237,0.5) 40%, transparent 50%);
+  }
+  .btn-primary:hover:not(:disabled), .btn-glow:hover:not(:disabled) {
+    border-color: rgba(124,58,237, 0.6);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+                0 6px 20px rgba(124,58,237, 0.4);
     transform: translateY(-1px);
   }
-  .btn-primary:active:not(:disabled) {
+  .btn-primary:active:not(:disabled), .btn-glow:active:not(:disabled) {
     transform: translateY(0);
-    box-shadow: 0 1px 3px rgba(99, 102, 241, 0.2);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+                0 2px 6px rgba(99,102,241, 0.2);
   }
 
-  .btn-secondary {
-    background-color: var(--surface-1);
-    border-color: var(--surface-border-strong);
-    color: var(--text-primary);
-    box-shadow: var(--shadow-xs);
-  }
-  .btn-secondary:hover:not(:disabled) {
-    background-color: var(--surface-2);
-    border-color: rgba(99, 102, 241, 0.4);
-    color: var(--color-primary-600);
-    transform: translateY(-1px);
-  }
-
-  .btn-ghost {
-    background-color: transparent;
-    border-color: transparent;
+  /* SECONDARY & GHOST */
+  .btn-secondary, .btn-ghost {
+    background: linear-gradient(180deg, rgba(20,18,30,0.85), rgba(10,8,18,0.92));
+    border-color: rgba(255, 255, 255, 0.05);
     color: var(--text-secondary);
   }
-  .btn-ghost:hover:not(:disabled) {
-    background-color: var(--surface-2);
-    color: var(--text-primary);
+  .btn-secondary::before, .btn-ghost::before {
+    background: conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.05) 20%, rgba(255,255,255,0.03) 40%, transparent 50%);
+  }
+  .btn-secondary:hover:not(:disabled), .btn-ghost:hover:not(:disabled) {
+    color: #e9e7f5;
+    border-color: rgba(99,102,241, 0.3);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+                0 4px 10px rgba(0, 0, 0, 0.3);
+    transform: translateY(-1px);
+  }
+  .btn-secondary:active:not(:disabled), .btn-ghost:active:not(:disabled) {
+    transform: translateY(0);
   }
 
+  /* DANGER */
   .btn-danger {
-    background-color: var(--color-error-500);
-    border-color: var(--color-error-500);
-    color: white;
+    border-color: rgba(239, 68, 68, 0.4);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15),
+                inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+                0 4px 14px rgba(239, 68, 68, 0.2);
+  }
+  .btn-danger::before {
+    background: conic-gradient(from 0deg, transparent 0%, rgba(239,68,68,0.4) 20%, rgba(220,38,38,0.3) 40%, transparent 50%);
   }
   .btn-danger:hover:not(:disabled) {
-    background-color: var(--color-error-600);
-    border-color: var(--color-error-600);
+    border-color: rgba(239, 68, 68, 0.6);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+                0 6px 20px rgba(239, 68, 68, 0.4);
     transform: translateY(-1px);
   }
-
-  .btn-glow {
-    background: linear-gradient(135deg, var(--color-primary-600), var(--color-primary-500));
-    border-color: var(--color-primary-500);
-    color: white;
-    box-shadow: var(--shadow-glow-primary);
-  }
-  .btn-glow:hover:not(:disabled) {
-    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.3), 0 8px 20px rgba(99, 102, 241, 0.4);
-    transform: translateY(-1px);
+  .btn-danger:active:not(:disabled) {
+    transform: translateY(0);
   }
 
   /* ── Input base ──────────────────────────────────── */

@@ -54,10 +54,24 @@ class InterviewSessionCreateSerializer(serializers.ModelSerializer):
 
         validated_data['user'] = user
 
-        if req_used_resume and user and user.is_authenticated and user.resume_text:
-            validated_data['used_resume'] = True
-            validated_data['resume_text'] = user.resume_text
-            validated_data['resume_highlights'] = user.resume_highlights
+        # A live interview is resume-driven: Alex only asks about resume content,
+        # and both this serializer and the WebSocket consumer require parsed
+        # resume highlights. If the request asks for a personalized interview but
+        # the user has no usable resume data, fail cleanly here (HTTP 400) so the
+        # frontend can route the user to upload one — rather than creating a
+        # session that the consumer would immediately close.
+        if req_used_resume and user and user.is_authenticated:
+            if getattr(user, 'resume_text', None) and getattr(user, 'resume_highlights', None):
+                validated_data['used_resume'] = True
+                validated_data['resume_text'] = user.resume_text
+                validated_data['resume_highlights'] = user.resume_highlights
+            else:
+                raise serializers.ValidationError({
+                    "reason": "resume_required",
+                    "detail": "You requested a personalized interview but no resume highlights were found. Please upload a resume first."
+                })
+        else:
+            validated_data['used_resume'] = False
 
         return super().create(validated_data)
 

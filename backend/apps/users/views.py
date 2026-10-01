@@ -129,13 +129,31 @@ class ResumeUploadView(APIView):
         user = request.user
         user.resume_file = file_obj
         user.resume_uploaded_at = timezone.now()
-        
+
         # Parse
         file_obj.seek(0)
         text = extract_text(file_obj, filename)
+        if not text or not text.strip():
+            # Could not extract any text — most likely a scanned/image-only PDF.
+            return Response(
+                {"error": "We couldn't read any text from that file. If it's a scanned "
+                          "document, please upload a text-based PDF, DOCX, or TXT instead."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        highlights = build_highlights(text)
+        if not highlights:
+            # Text extracted but the LLM highlight extraction failed/returned empty.
+            # Don't leave the user with an unusable resume on file.
+            return Response(
+                {"error": "We read your resume but couldn't analyze it just now. "
+                          "Please try uploading again in a moment."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
         user.resume_text = text
-        user.resume_highlights = build_highlights(text)
-        
+        user.resume_highlights = highlights
+
         user.save()
         return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
 

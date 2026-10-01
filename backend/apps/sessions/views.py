@@ -164,7 +164,7 @@ class LiveInterviewSetupView(APIView):
 
 class GroqHRReactionView(APIView):
     """
-    Evaluates candidate response in real-time using Groq LLM (llama-3.1-8b-instant)
+    Evaluates candidate response in real-time using Groq LLM (qwen/qwen3.8-27b)
     and returns realistic HR verbal appreciation, facial expression state, and follow-up question.
     """
     permission_classes = [permissions.AllowAny]
@@ -196,7 +196,7 @@ Respond strictly in valid JSON format with the following keys:
         }
 
         payload = {
-            'model': 'llama-3.1-8b-instant',
+            'model': 'qwen/qwen3.8-27b',
             'messages': [
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': f'Candidate Answer: {candidate_answer or "I answered the prompt with relevant experience."}'}

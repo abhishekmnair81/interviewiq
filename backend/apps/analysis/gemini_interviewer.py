@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class GroqInterviewer:
     """
-    Real-time AI Interviewer Engine using Groq LLM API (llama-3.1-8b-instant / llama-3.3-70b-versatile).
+    Real-time AI Interviewer Engine using Groq LLM API (qwen/qwen3.8-27b / llama-3.3-70b-versatile).
     Lightning-fast, highly accurate conversational interviewer & structured feedback generator.
     """
     def __init__(self, job_role: str = "Software Engineer", difficulty: str = "medium", category: str = "behavioral"):
@@ -45,7 +45,7 @@ class GroqInterviewer:
         }
 
         payload = {
-            'model': 'llama-3.1-8b-instant',
+            'model': 'qwen/qwen3.8-27b',
             'messages': messages,
             'temperature': 0.7,
             'max_tokens': 500,

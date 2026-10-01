@@ -24,8 +24,13 @@ class OneCompilerRunner:
 
         payload = {
             "language": lang,
-            "code": source_code,
             "stdin": stdin,
+            "files": [
+                {
+                    "name": f"main.{lang}",
+                    "content": source_code
+                }
+            ]
         }
 
         headers = {
@@ -37,7 +42,7 @@ class OneCompilerRunner:
 
         try:
             response = requests.post(
-                f"{self.base_url}/run",
+                f"{self.base_url}/run?access_token={self.api_key}",
                 json=payload,
                 headers=headers,
                 timeout=15,

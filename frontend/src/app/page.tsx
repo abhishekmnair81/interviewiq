@@ -6,8 +6,10 @@ import { LaserCollection } from '@/components/threeui/laser';
 import { TextAnimation3D } from '@/components/threeui/TextAnimation3D';
 import Logo from '@/components/Logo';
 import Footer from '@/components/Footer';
+import OrbitGalleryHeading from '@/components/OrbitGalleryHeading';
+import JourneyTimeline from '@/components/JourneyTimeline';
 
-import { Mic, Eye, BrainCircuit, FileSearch, FileEdit, Activity, LineChart as ChartIcon } from 'lucide-react';
+import { FileSearch, FileEdit, LineChart as ChartIcon } from 'lucide-react';
 
 /**
  * LANDING PAGE — Dark futuristic theme powered by ThreeUI <LaserCollection />
@@ -85,7 +87,7 @@ export default function Home() {
         </div>
 
         <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white mb-6">
-          With <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-indigo-300 to-amber-300">Next-Gen Intelligence</span>
+          With <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-indigo-300 to-amber-300 to-violet-400 bg-[size:200%] animate-shimmer">Next-Gen Intelligence</span>
         </h2>
 
         <p className="text-base sm:text-lg text-slate-300 max-w-2xl mb-12 leading-relaxed font-normal animate-slide-up" style={{ animationDelay: '200ms' }}>
@@ -109,38 +111,37 @@ export default function Home() {
           )}
         </div>
 
-        {/* Feature Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full text-left animate-slide-up" style={{ animationDelay: '400ms' }}>
-          <div className="p-6 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-white/10 hover:border-violet-500/50 transition-all group">
-            <div className="w-12 h-12 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center mb-4 text-cyan-400 shadow-sm group-hover:shadow-glow-signal transition-all">
-              <Mic size={24} />
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">Whisper Speech Intelligence</h3>
-            <p className="text-sm text-slate-400 leading-relaxed font-normal">
-              Evaluates WPM speed, vocal hesitations, volume consistency, and tone clarity in real-time.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-white/10 hover:border-violet-500/50 transition-all group">
-            <div className="w-12 h-12 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center mb-4 text-violet-400 shadow-sm group-hover:shadow-glow-primary transition-all">
-              <Eye size={24} />
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">MediaPipe Gaze Tracking</h3>
-            <p className="text-sm text-slate-400 leading-relaxed font-normal">
-              Monitors camera eye contact, head stability, and posture composure during your response.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-white/10 hover:border-amber-500/50 transition-all group">
-            <div className="w-12 h-12 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center mb-4 text-amber-400 shadow-sm group-hover:shadow-glow-accent transition-all">
-              <BrainCircuit size={24} />
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">STAR Answer Framework</h3>
-            <p className="text-sm text-slate-400 leading-relaxed font-normal">
-              Calculates relevance, verifies Situation/Task/Action/Result components, and flags vague language.
-            </p>
-          </div>
+        {/* How It Works — resume-to-ready journey (replaces the old feature cards) */}
+        <div className="w-full animate-slide-up" style={{ animationDelay: '400ms' }}>
+          <JourneyTimeline />
         </div>
+      </section>
+
+      {/* Skills-in-Orbit Section — custom Canvas-2D rotating ring */}
+      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-24 border-t border-white/5">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.05] border border-violet-400/30 text-violet-300 text-xs font-bold uppercase tracking-wider mb-6 shadow-glow-primary backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse shadow-glow-primary" />
+            ONE STUDIO · TWELVE SIGNALS
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-white mb-4">
+            A Complete <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-indigo-300 to-amber-300">Interview Intelligence</span> Loop
+          </h2>
+          <p className="text-slate-400 max-w-2xl mx-auto">
+            Every answer you give is scored across a dozen dimensions at once — from how you speak to what you say to how you look while saying it. Watch the full picture come together.
+          </p>
+        </div>
+
+        {/* The rotating ring — pure Canvas 2D, not a page background */}
+        <OrbitGalleryHeading
+          line1="EVERYTHING WE"
+          line2="MEASURE IN ORBIT"
+          className="w-full h-[360px] sm:h-[460px] max-w-5xl mx-auto"
+        />
+
+        <p className="text-center text-sm text-slate-500 max-w-xl mx-auto mt-8 leading-relaxed">
+          Speech pacing, eye contact, STAR structure, resume relevance, coding depth, live scoring and more — one seamless practice session, one honest report.
+        </p>
       </section>
 
       {/* Upcoming Features Section */}
@@ -160,7 +161,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* ATS Resume Checker */}
-          <div className="p-6 rounded-2xl bg-gradient-to-b from-slate-900/80 to-slate-900/40 backdrop-blur-xl border border-white/10 relative overflow-hidden group">
+          <div className="glass-card p-8 group relative overflow-hidden card-hover">
             <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform">
               <FileSearch size={100} />
             </div>
@@ -174,7 +175,7 @@ export default function Home() {
           </div>
 
           {/* ATS Resume Builder */}
-          <div className="p-6 rounded-2xl bg-gradient-to-b from-slate-900/80 to-slate-900/40 backdrop-blur-xl border border-white/10 relative overflow-hidden group">
+          <div className="glass-card p-8 group relative overflow-hidden card-hover">
             <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform">
               <FileEdit size={100} />
             </div>
@@ -183,12 +184,12 @@ export default function Home() {
             </div>
             <h3 className="text-lg font-bold text-white mb-3 relative z-10">ATS Resume Builder</h3>
             <p className="text-sm text-slate-400 leading-relaxed font-normal relative z-10">
-              Don't have a resume? Build a highly optimized, ATS-friendly resume from scratch using our AI-guided templates designed by top recruiters.
+              Don&apos;t have a resume? Build a highly optimized, ATS-friendly resume from scratch using our AI-guided templates designed by top recruiters.
             </p>
           </div>
 
           {/* Aptitude Tests */}
-          <div className="p-6 rounded-2xl bg-gradient-to-b from-slate-900/80 to-slate-900/40 backdrop-blur-xl border border-white/10 relative overflow-hidden group">
+          <div className="glass-card p-8 group relative overflow-hidden card-hover">
             <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform">
               <ChartIcon size={100} />
             </div>

@@ -1,5 +1,4 @@
-
-
+#!/usr/bin/env bash
 set -e
 
 echo "=============================================="
@@ -21,13 +20,9 @@ python manage.py migrate --noinput
 echo "[entrypoint] Collecting static files..."
 python manage.py collectstatic --noinput --clear
 
-echo "[entrypoint] Starting Gunicorn..."
-exec gunicorn core.wsgi:application \
-    --bind 0.0.0.0:8000 \
-    --workers 3 \
-    --worker-class gthread \
-    --threads 2 \
-    --timeout 120 \
-    --access-logfile - \
-    --error-logfile - \
-    --log-level info
+# IMPORTANT: This app uses Django Channels (WebSockets for the live interview).
+# It MUST be served by an ASGI server. Gunicorn on core.wsgi is WSGI-only and
+# cannot perform the WebSocket upgrade, which makes /ws/interview/... fail.
+# Daphne serves both HTTP and WebSocket from the single ASGI application.
+echo "[entrypoint] Starting Daphne (ASGI — HTTP + WebSocket)..."
+exec daphne -b 0.0.0.0 -p 8000 --access-log - core.asgi:application

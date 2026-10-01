@@ -81,7 +81,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
         )
 
     def get_has_resume(self, obj):
-        return bool(obj.resume_file)
+        # "Has resume" must mean the resume is actually usable for a live
+        # interview, i.e. it was parsed into highlights. A raw uploaded file
+        # that failed to parse (empty highlights) is NOT enough — the interview
+        # setup gates the "Begin" button on this flag, and session creation +
+        # the WebSocket consumer both require parsed highlights. Keying off the
+        # file alone let users start an interview that then hard-fails with 400.
+        return bool(obj.resume_text and obj.resume_highlights)
 
     def get_resume_filename(self, obj):
         return obj.resume_file.name.split('/')[-1] if obj.resume_file else None
